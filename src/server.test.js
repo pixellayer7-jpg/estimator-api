@@ -43,11 +43,45 @@ describe('estimator-api', () => {
     assert.strictEqual(found.projectType, 'landing')
   })
 
+  it('GET /', async () => {
+    const res = await app.inject({ method: 'GET', url: '/' })
+    assert.strictEqual(res.statusCode, 200)
+    const body = JSON.parse(res.body)
+    assert.strictEqual(body.service, 'estimator-api')
+    assert.ok(body.endpoints?.health)
+  })
+
   it('GET /health', async () => {
     const res = await app.inject({ method: 'GET', url: '/health' })
     assert.strictEqual(res.statusCode, 200)
     const body = JSON.parse(res.body)
     assert.strictEqual(body.ok, true)
+  })
+
+  it('accepts string min/max from JSON', async () => {
+    const payload = {
+      projectType: 'landing',
+      addOnIds: [],
+      extraSections: '0',
+      min: '800',
+      max: '1200',
+      lang: 'en',
+    }
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/v1/quotes',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify(payload),
+    })
+    assert.strictEqual(post.statusCode, 201)
+    const created = JSON.parse(post.body)
+    const get = await app.inject({
+      method: 'GET',
+      url: `/api/v1/quotes/${created.id}`,
+    })
+    const row = JSON.parse(get.body)
+    assert.strictEqual(row.min, 800)
+    assert.strictEqual(row.max, 1200)
   })
 
   it('POST then GET quote', async () => {

@@ -6,6 +6,7 @@ Minimal **Node.js + Fastify** service for **PixelLayer** to **save** calculator 
 
 | Method | Path | Description |
 |--------|------|---------------|
+| `GET` | `/` | Service name, version, and endpoint map (JSON) |
 | `GET` | `/health` | Liveness check |
 | `POST` | `/api/v1/quotes` | Save a quote snapshot (JSON body) → returns `{ id, createdAt, path }` |
 | `GET` | `/api/v1/quotes/:id` | Load one saved quote |
@@ -24,6 +25,7 @@ npm run dev            # http://localhost:3000
 Example:
 
 ```bash
+curl -s http://localhost:3000/
 curl -s http://localhost:3000/health
 curl -s -X POST http://localhost:3000/api/v1/quotes \
   -H "content-type: application/json" \

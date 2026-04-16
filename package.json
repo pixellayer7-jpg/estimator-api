@@ -1,11 +1,15 @@
 {
   "name": "estimator-api",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "PixelLayer — minimal API to persist and share project quotes (MVP, file-backed).",
   "type": "module",
   "author": "PixelLayer L.L.C",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pixellayer7-jpg/estimator-api.git"
+  },
   "engines": {
     "node": ">=20"
   },
