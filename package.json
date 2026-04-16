@@ -1,7 +1,7 @@
 {
   "name": "estimator-api",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "PixelLayer — minimal API to persist and share project quotes (MVP, file-backed).",
   "type": "module",
   "author": "PixelLayer L.L.C",

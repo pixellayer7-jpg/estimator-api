@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import { randomUUID } from 'node:crypto'
-import { appendQuote, findQuoteById } from './store.js'
+import { appendQuote, findQuoteById, listQuotesRecent } from './store.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const pkg = JSON.parse(
@@ -28,12 +28,24 @@ export default async function buildApp() {
     version: pkg.version,
     endpoints: {
       health: '/health',
+      listQuotes: 'GET /api/v1/quotes?limit=20',
       createQuote: 'POST /api/v1/quotes',
       getQuote: 'GET /api/v1/quotes/:id',
     },
   }))
 
   app.get('/health', async () => ({ ok: true, service: 'estimator-api' }))
+
+  app.get('/api/v1/quotes', async (request) => {
+    let limit = 20
+    const raw = request.query.limit
+    if (raw !== undefined && raw !== '') {
+      const p = Number.parseInt(String(raw), 10)
+      if (Number.isFinite(p)) limit = p
+    }
+    const items = await listQuotesRecent(limit)
+    return { count: items.length, items }
+  })
 
   app.post('/api/v1/quotes', async (request, reply) => {
     const body = request.body
@@ -93,6 +105,10 @@ export default async function buildApp() {
     const row = await findQuoteById(id)
     if (!row) return reply.code(404).send({ error: 'Not found' })
     return row
+  })
+
+  app.setNotFoundHandler((_request, reply) => {
+    reply.code(404).send({ error: 'Not found' })
   })
 
   return app

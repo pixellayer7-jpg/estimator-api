@@ -113,4 +113,35 @@ describe('estimator-api', () => {
     assert.strictEqual(row.projectType, 'website')
     assert.strictEqual(row.addOnIds[0], 'design')
   })
+
+  it('GET /api/v1/quotes lists recent rows without summary', async () => {
+    await store.writeQuotes([])
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/v1/quotes',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        projectType: 'landing',
+        addOnIds: [],
+        extraSections: '0',
+        min: 100,
+        max: 200,
+        lang: 'en',
+        summary: 'should-not-appear-in-list',
+      }),
+    })
+    const { id } = JSON.parse(post.body)
+    const list = await app.inject({ url: '/api/v1/quotes?limit=5' })
+    assert.strictEqual(list.statusCode, 200)
+    const body = JSON.parse(list.body)
+    assert.strictEqual(body.count, 1)
+    assert.strictEqual(body.items[0].id, id)
+    assert.strictEqual(body.items[0].summary, undefined)
+  })
+
+  it('unknown path returns JSON 404', async () => {
+    const res = await app.inject({ url: '/does-not-exist' })
+    assert.strictEqual(res.statusCode, 404)
+    assert.deepStrictEqual(JSON.parse(res.body), { error: 'Not found' })
+  })
 })
