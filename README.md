@@ -33,6 +33,7 @@ curl -s http://localhost:3000/health
 curl -s -X POST http://localhost:3000/api/v1/quotes \
   -H "content-type: application/json" \
   -d '{"projectType":"landing","addOnIds":[],"extraSections":"0","min":800,"max":1200,"lang":"en","summary":"..."}'
+curl -s "http://localhost:3000/api/v1/quotes?limit=5"
 ```
 
 ## Environment
