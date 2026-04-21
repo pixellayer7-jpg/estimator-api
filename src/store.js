@@ -49,15 +49,13 @@ export async function findQuoteById(id) {
 export async function listQuotesRecent(limit = 20) {
   const quotes = await readQuotes()
   const n = Math.min(100, Math.max(1, Math.floor(limit) || 20))
-  return [...quotes]
-    .reverse()
-    .slice(0, n)
-    .map((q) => ({
-      id: q.id,
-      createdAt: q.createdAt,
-      projectType: q.projectType,
-      min: q.min,
-      max: q.max,
-      lang: q.lang,
-    }))
+  const tail = quotes.slice(-n).reverse()
+  return tail.map((q) => ({
+    id: q.id,
+    createdAt: q.createdAt,
+    projectType: q.projectType,
+    min: q.min,
+    max: q.max,
+    lang: q.lang,
+  }))
 }
