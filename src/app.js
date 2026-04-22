@@ -6,6 +6,10 @@ import cors from '@fastify/cors'
 import { randomUUID } from 'node:crypto'
 import { appendQuote, findQuoteById, listQuotesRecent } from './store.js'
 
+/** RFC 9562 UUID v1–v5 shape (ids from `randomUUID`). */
+const UUID_PARAM =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const pkg = JSON.parse(
   readFileSync(join(__dirname, '..', 'package.json'), 'utf8')
@@ -102,6 +106,9 @@ export default async function buildApp() {
 
   app.get('/api/v1/quotes/:id', async (request, reply) => {
     const { id } = request.params
+    if (!UUID_PARAM.test(id)) {
+      return reply.code(400).send({ error: 'Invalid id' })
+    }
     const row = await findQuoteById(id)
     if (!row) return reply.code(404).send({ error: 'Not found' })
     return row

@@ -10,7 +10,7 @@ Minimal **Node.js + Fastify** service for **PixelLayer** to **save** calculator 
 | `GET` | `/health` | Liveness check |
 | `GET` | `/api/v1/quotes?limit=20` | List recent quotes (newest first); each item omits `summary`. `limit` 1–100, default 20. **Unauthenticated** — protect or remove in production. |
 | `POST` | `/api/v1/quotes` | Save a quote snapshot (JSON body) → returns `{ id, createdAt, path }` |
-| `GET` | `/api/v1/quotes/:id` | Load one saved quote |
+| `GET` | `/api/v1/quotes/:id` | Load one saved quote (`id` must be a UUID string; malformed ids → **400**) |
 
 Storage is a **JSON file** under `data/quotes.json` (directory is gitignored). Good for demos and low traffic; **use PostgreSQL** (Neon, Supabase, RDS, …) when you need concurrency and backups.
 

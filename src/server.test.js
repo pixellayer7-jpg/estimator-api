@@ -144,4 +144,10 @@ describe('estimator-api', () => {
     assert.strictEqual(res.statusCode, 404)
     assert.deepStrictEqual(JSON.parse(res.body), { error: 'Not found' })
   })
+
+  it('GET quote with invalid id returns 400', async () => {
+    const res = await app.inject({ url: '/api/v1/quotes/not-a-uuid' })
+    assert.strictEqual(res.statusCode, 400)
+    assert.deepStrictEqual(JSON.parse(res.body), { error: 'Invalid id' })
+  })
 })
