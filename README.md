@@ -14,7 +14,7 @@ Minimal **Node.js + Fastify** service for **PixelLayer** to **save** calculator 
 
 Storage is a **JSON file** under `data/quotes.json` (directory is gitignored). Good for demos and low traffic; **use PostgreSQL** (Neon, Supabase, RDS, …) when you need concurrency and backups.
 
-Unknown paths return **`404`** with `{ "error": "Not found" }`.
+Unknown paths return **`404`** with `{ "error": "Not found" }`. A well-formed UUID that is not in the store also returns **404**; a **non-UUID** `:id` on `GET /api/v1/quotes/:id` returns **400** `{ "error": "Invalid id" }`.
 
 ## Run locally
 
