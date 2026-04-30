@@ -46,6 +46,7 @@ describe('estimator-api', () => {
   it('GET /', async () => {
     const res = await app.inject({ method: 'GET', url: '/' })
     assert.strictEqual(res.statusCode, 200)
+    assert.strictEqual(res.headers['x-content-type-options'], 'nosniff')
     const body = JSON.parse(res.body)
     assert.strictEqual(body.service, 'estimator-api')
     assert.ok(body.endpoints?.health)
@@ -54,6 +55,7 @@ describe('estimator-api', () => {
   it('GET /health', async () => {
     const res = await app.inject({ method: 'GET', url: '/health' })
     assert.strictEqual(res.statusCode, 200)
+    assert.strictEqual(res.headers['x-content-type-options'], 'nosniff')
     const body = JSON.parse(res.body)
     assert.strictEqual(body.ok, true)
   })

@@ -27,6 +27,11 @@ export default async function buildApp() {
     origin: origins.length ? origins : true,
   })
 
+  app.addHook('onSend', async (_request, reply, payload) => {
+    reply.header('X-Content-Type-Options', 'nosniff')
+    return payload
+  })
+
   app.get('/', async () => ({
     service: 'estimator-api',
     version: pkg.version,

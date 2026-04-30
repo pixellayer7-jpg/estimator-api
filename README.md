@@ -16,6 +16,8 @@ Storage is a **JSON file** under `data/quotes.json` (directory is gitignored). G
 
 Unknown paths return **`404`** with `{ "error": "Not found" }`. A well-formed UUID that is not in the store also returns **404**; a **non-UUID** `:id` on `GET /api/v1/quotes/:id` returns **400** `{ "error": "Invalid id" }`.
 
+Responses include **`X-Content-Type-Options: nosniff`** on JSON bodies.
+
 ## Run locally
 
 ```bash
