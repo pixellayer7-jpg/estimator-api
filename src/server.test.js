@@ -60,6 +60,25 @@ describe('estimator-api', () => {
     assert.strictEqual(body.ok, true)
   })
 
+  it('POST rejects oversized JSON body', async () => {
+    const huge = 'x'.repeat(350_000)
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/v1/quotes',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        projectType: 'landing',
+        addOnIds: [],
+        extraSections: '0',
+        min: 1,
+        max: 2,
+        lang: 'en',
+        summary: huge,
+      }),
+    })
+    assert.strictEqual(post.statusCode, 413)
+  })
+
   it('accepts string min/max from JSON', async () => {
     const payload = {
       projectType: 'landing',

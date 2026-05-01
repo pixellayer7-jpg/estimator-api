@@ -16,7 +16,7 @@ const pkg = JSON.parse(
 )
 
 export default async function buildApp() {
-  const app = Fastify({ logger: false })
+  const app = Fastify({ logger: false, bodyLimit: 262_144 })
 
   const origins = (process.env.CORS_ORIGIN || '')
     .split(',')
