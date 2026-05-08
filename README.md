@@ -22,6 +22,8 @@ Responses include **`X-Content-Type-Options: nosniff`** on JSON bodies.
 
 ## Run locally
 
+Use **Node 20** (see **`engines`** in `package.json`; optional **`.nvmrc`** for `nvm use`).
+
 ```bash
 cd estimator-api
 npm install
@@ -58,6 +60,8 @@ Use **Railway**, **Render**, **Fly.io**, etc.: they provide a **HTTPS subdomain*
 ```bash
 npm test
 ```
+
+GitHub Actions (**`.github/workflows/ci.yml`**) runs on push/PR with **`permissions: contents: read`**, **concurrency** (cancels superseded runs on the same branch), and **Node 20** (see `engines` / **`.nvmrc`**).
 
 ## Related repos
 
