@@ -1,5 +1,8 @@
 # estimator-api
 
+> **Portfolio highlight** · [My GitHub](https://github.com/pixellayer7-jpg) · Pairs with [project-estimator](https://github.com/pixellayer7-jpg/project-estimator)  
+> Node 20 · Fastify 5 · JSON Schema · CORS · Bearer-protected list · Node test runner · CI
+
 Minimal **Node.js + Fastify** service for **PixelLayer** to **save** calculator payloads and **fetch** them by id (step toward share links and a future auth layer).
 
 ## What it does (MVP)
@@ -8,8 +11,8 @@ Minimal **Node.js + Fastify** service for **PixelLayer** to **save** calculator 
 |--------|------|---------------|
 | `GET` | `/` | Service name, version, and endpoint map (JSON) |
 | `GET` | `/health` | Liveness check |
-| `GET` | `/api/v1/quotes?limit=20` | List recent quotes (newest first); each item omits `summary`. `limit` 1–100, default 20. **Unauthenticated** — protect or remove in production. |
-| `POST` | `/api/v1/quotes` | Save a quote snapshot (JSON body, max **256 KiB**; larger → **413**) → returns `{ id, createdAt, path }` |
+| `GET` | `/api/v1/quotes?limit=20` | List recent quotes (newest first); each item omits `summary`. `limit` 1–100, default 20. Set **`LIST_QUOTES_TOKEN`** to require `Authorization: Bearer <token>` for this list endpoint in production. |
+| `POST` | `/api/v1/quotes` | Save a quote snapshot (JSON body validated with JSON Schema; invalid body → **400**; `lang` must be **`en`** or **`zh`** if sent; `min` ≤ `max` (finite numbers); **`quoteRef`** must be a UUID when provided; **`extraSections`** stored as a **string**; max **256 KiB** → **413**) → returns `{ id, createdAt, path, loadQuery }` where **`loadQuery`** is `?load=<id>` for the calculator UI |
 | `GET` | `/api/v1/quotes/:id` | Load one saved quote (`id` must be a UUID string; malformed ids → **400**) |
 
 Storage is a **JSON file** under `data/quotes.json` (directory is gitignored). Good for demos and low traffic; **use PostgreSQL** (Neon, Supabase, RDS, …) when you need concurrency and backups.
@@ -40,6 +43,8 @@ curl -s -X POST http://localhost:3000/api/v1/quotes \
   -H "content-type: application/json" \
   -d '{"projectType":"landing","addOnIds":[],"extraSections":"0","min":800,"max":1200,"lang":"en","summary":"..."}'
 curl -s "http://localhost:3000/api/v1/quotes?limit=5"
+curl -s "http://localhost:3000/api/v1/quotes?limit=5" \
+  -H "authorization: Bearer $LIST_QUOTES_TOKEN" # if LIST_QUOTES_TOKEN is set
 ```
 
 ## Environment
@@ -50,10 +55,11 @@ curl -s "http://localhost:3000/api/v1/quotes?limit=5"
 | `HOST` | Bind address (default `0.0.0.0`) |
 | `CORS_ORIGIN` | Comma-separated allowed origins; empty = allow all (**dev only**) |
 | `DATA_DIR` | Override directory for `quotes.json` |
+| `LIST_QUOTES_TOKEN` | Optional bearer token that protects `GET /api/v1/quotes`; leave empty for local/dev compatibility |
 
 ## Deploy without your own domain
 
-Use **Railway**, **Render**, **Fly.io**, etc.: they provide a **HTTPS subdomain**. Set `CORS_ORIGIN` to your **project-estimator** Pages URL when you wire the frontend.
+Use **Railway**, **Render**, **Fly.io**, etc.: they provide a **HTTPS subdomain**. Set `CORS_ORIGIN` to your **project-estimator** Pages URL when you wire the frontend. For production, set `LIST_QUOTES_TOKEN` so the recent-quotes list is not publicly browsable; individual quote share links (`GET /api/v1/quotes/:id`) remain public by UUID.
 
 ## Tests
 
