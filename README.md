@@ -5,6 +5,8 @@
 
 Minimal **Node.js + Fastify** service for **PixelLayer** to **save** calculator payloads and **fetch** them by id (step toward share links and a future auth layer).
 
+**Live frontends:** [Landing](https://pixellayer7-jpg.github.io/1/) · [Quote calculator](https://pixellayer7-jpg.github.io/project-estimator/) (wire with `VITE_QUOTE_API_URL` + CORS when deployed).
+
 ## What it does (MVP)
 
 | Method | Path | Description |

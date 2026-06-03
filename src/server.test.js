@@ -105,6 +105,27 @@ describe('estimator-api', () => {
     assert.strictEqual(row.max, 1200)
   })
 
+  it('stores numeric extraSections as string', async () => {
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/v1/quotes',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        projectType: 'landing',
+        addOnIds: [],
+        extraSections: 3,
+        min: 100,
+        max: 200,
+        lang: 'en',
+      }),
+    })
+    assert.strictEqual(post.statusCode, 201)
+    const { id } = JSON.parse(post.body)
+    const get = await app.inject({ url: `/api/v1/quotes/${id}` })
+    const row = JSON.parse(get.body)
+    assert.strictEqual(row.extraSections, '3')
+  })
+
   it('POST then GET quote', async () => {
     const payload = {
       projectType: 'website',
@@ -160,6 +181,35 @@ describe('estimator-api', () => {
     assert.strictEqual(body.items[0].summary, undefined)
   })
 
+  it('GET /api/v1/quotes requires bearer token when LIST_QUOTES_TOKEN is set', async () => {
+    const prev = process.env.LIST_QUOTES_TOKEN
+    process.env.LIST_QUOTES_TOKEN = 'list-secret'
+    try {
+      const noAuth = await app.inject({ url: '/api/v1/quotes?limit=1' })
+      assert.strictEqual(noAuth.statusCode, 401)
+      assert.strictEqual(noAuth.headers['www-authenticate'], 'Bearer')
+      assert.deepStrictEqual(JSON.parse(noAuth.body), {
+        error: 'Unauthorized',
+      })
+
+      const wrong = await app.inject({
+        url: '/api/v1/quotes?limit=1',
+        headers: { authorization: 'Bearer wrong-secret' },
+      })
+      assert.strictEqual(wrong.statusCode, 401)
+
+      const ok = await app.inject({
+        url: '/api/v1/quotes?limit=1',
+        headers: { authorization: 'Bearer list-secret' },
+      })
+      assert.strictEqual(ok.statusCode, 200)
+      assert.ok(Array.isArray(JSON.parse(ok.body).items))
+    } finally {
+      if (prev === undefined) delete process.env.LIST_QUOTES_TOKEN
+      else process.env.LIST_QUOTES_TOKEN = prev
+    }
+  })
+
   it('unknown path returns JSON 404', async () => {
     const res = await app.inject({ url: '/does-not-exist' })
     assert.strictEqual(res.statusCode, 404)
@@ -170,5 +220,107 @@ describe('estimator-api', () => {
     const res = await app.inject({ url: '/api/v1/quotes/not-a-uuid' })
     assert.strictEqual(res.statusCode, 400)
     assert.deepStrictEqual(JSON.parse(res.body), { error: 'Invalid id' })
+  })
+
+  it('POST empty JSON object returns 400 Invalid request body', async () => {
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/v1/quotes',
+      headers: { 'content-type': 'application/json' },
+      payload: '{}',
+    })
+    assert.strictEqual(post.statusCode, 400)
+    assert.deepStrictEqual(JSON.parse(post.body), {
+      error: 'Invalid request body',
+    })
+  })
+
+  it('POST rejects min greater than max', async () => {
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/v1/quotes',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        projectType: 'landing',
+        addOnIds: [],
+        min: 500,
+        max: 100,
+        lang: 'en',
+      }),
+    })
+    assert.strictEqual(post.statusCode, 400)
+    assert.strictEqual(
+      JSON.parse(post.body).error,
+      'min must be less than or equal to max'
+    )
+  })
+
+  it('POST rejects invalid lang', async () => {
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/v1/quotes',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        projectType: 'landing',
+        addOnIds: [],
+        min: 1,
+        max: 2,
+        lang: 'fr',
+      }),
+    })
+    assert.strictEqual(post.statusCode, 400)
+    assert.strictEqual(JSON.parse(post.body).error, 'Invalid request body')
+  })
+
+  it('POST rejects invalid quoteRef', async () => {
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/v1/quotes',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        projectType: 'landing',
+        addOnIds: [],
+        min: 1,
+        max: 2,
+        quoteRef: 'not-a-uuid',
+      }),
+    })
+    assert.strictEqual(post.statusCode, 400)
+    assert.deepStrictEqual(JSON.parse(post.body), { error: 'Invalid quoteRef' })
+  })
+
+  it('POST 201 includes loadQuery for calculator deep link', async () => {
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/v1/quotes',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        projectType: 'landing',
+        addOnIds: [],
+        min: 100,
+        max: 200,
+        lang: 'en',
+      }),
+    })
+    assert.strictEqual(post.statusCode, 201)
+    const body = JSON.parse(post.body)
+    assert.ok(body.id)
+    assert.strictEqual(body.loadQuery, `?load=${body.id}`)
+  })
+
+  it('POST with empty projectType returns 400', async () => {
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/v1/quotes',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        projectType: '',
+        addOnIds: [],
+        min: 1,
+        max: 2,
+      }),
+    })
+    assert.strictEqual(post.statusCode, 400)
+    assert.strictEqual(JSON.parse(post.body).error, 'Invalid request body')
   })
 })

@@ -3,17 +3,59 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
-import { randomUUID } from 'node:crypto'
+import { randomUUID, timingSafeEqual } from 'node:crypto'
 import { appendQuote, findQuoteById, listQuotesRecent } from './store.js'
 
 /** RFC 9562 UUID v1–v5 shape (ids from `randomUUID`). */
 const UUID_PARAM =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
+/** JSON Schema for `POST /api/v1/quotes` (AJV). */
+const postQuoteBodySchema = {
+  type: 'object',
+  required: ['projectType', 'addOnIds', 'min', 'max'],
+  properties: {
+    projectType: { type: 'string', minLength: 1 },
+    addOnIds: { type: 'array', items: { type: 'string' } },
+    extraSections: { anyOf: [{ type: 'string' }, { type: 'number' }] },
+    min: { anyOf: [{ type: 'number' }, { type: 'string' }] },
+    max: { anyOf: [{ type: 'number' }, { type: 'string' }] },
+    lang: { enum: ['en', 'zh'] },
+    quoteRef: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    summary: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+  },
+  additionalProperties: true,
+}
+
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const pkg = JSON.parse(
   readFileSync(join(__dirname, '..', 'package.json'), 'utf8')
 )
+
+function safeTokenEquals(a, b) {
+  const aa = Buffer.from(a)
+  const bb = Buffer.from(b)
+  return aa.length === bb.length && timingSafeEqual(aa, bb)
+}
+
+function getBearerToken(request) {
+  const header = request.headers.authorization
+  if (typeof header !== 'string') return ''
+  const match = header.match(/^Bearer\s+(.+)$/i)
+  return match ? match[1].trim() : ''
+}
+
+function authorizeQuoteList(request, reply) {
+  const expected = String(process.env.LIST_QUOTES_TOKEN || '').trim()
+  if (!expected) return true
+  const provided = getBearerToken(request)
+  if (provided && safeTokenEquals(provided, expected)) return true
+  reply
+    .header('WWW-Authenticate', 'Bearer')
+    .code(401)
+    .send({ error: 'Unauthorized' })
+  return false
+}
 
 export default async function buildApp() {
   const app = Fastify({ logger: false, bodyLimit: 262_144 })
@@ -32,6 +74,18 @@ export default async function buildApp() {
     return payload
   })
 
+  app.setErrorHandler((error, _request, reply) => {
+    if (error.validation) {
+      return reply.code(400).send({ error: 'Invalid request body' })
+    }
+    if (error.statusCode) {
+      return reply.code(error.statusCode).send({
+        error: typeof error.message === 'string' ? error.message : 'Error',
+      })
+    }
+    return reply.code(500).send({ error: 'Internal Server Error' })
+  })
+
   app.get('/', async () => ({
     service: 'estimator-api',
     version: pkg.version,
@@ -45,7 +99,8 @@ export default async function buildApp() {
 
   app.get('/health', async () => ({ ok: true, service: 'estimator-api' }))
 
-  app.get('/api/v1/quotes', async (request) => {
+  app.get('/api/v1/quotes', async (request, reply) => {
+    if (!authorizeQuoteList(request, reply)) return
     let limit = 20
     const raw = request.query.limit
     if (raw !== undefined && raw !== '') {
@@ -56,58 +111,71 @@ export default async function buildApp() {
     return { count: items.length, items }
   })
 
-  app.post('/api/v1/quotes', async (request, reply) => {
-    const body = request.body
-    if (!body || typeof body !== 'object') {
-      return reply.code(400).send({ error: 'JSON body required' })
-    }
-    const {
-      projectType,
-      addOnIds,
-      extraSections,
-      min,
-      max,
-      lang,
-      quoteRef,
-      summary,
-    } = body
+  app.post(
+    '/api/v1/quotes',
+    { schema: { body: postQuoteBodySchema } },
+    async (request, reply) => {
+      const body = request.body
+      const {
+        projectType,
+        addOnIds,
+        extraSections,
+        min,
+        max,
+        lang,
+        quoteRef,
+        summary,
+      } = body
 
-    if (typeof projectType !== 'string' || !projectType) {
-      return reply.code(400).send({ error: 'projectType is required' })
-    }
-    if (!Array.isArray(addOnIds)) {
-      return reply.code(400).send({ error: 'addOnIds must be an array' })
-    }
-    const minNum = typeof min === 'number' ? min : Number(min)
-    const maxNum = typeof max === 'number' ? max : Number(max)
-    if (!Number.isFinite(minNum) || !Number.isFinite(maxNum)) {
-      return reply
-        .code(400)
-        .send({ error: 'min and max must be finite numbers' })
-    }
+      const minNum = typeof min === 'number' ? min : Number(min)
+      const maxNum = typeof max === 'number' ? max : Number(max)
+      if (!Number.isFinite(minNum) || !Number.isFinite(maxNum)) {
+        return reply
+          .code(400)
+          .send({ error: 'min and max must be finite numbers' })
+      }
+      if (minNum > maxNum) {
+        return reply
+          .code(400)
+          .send({ error: 'min must be less than or equal to max' })
+      }
+      if (
+        typeof quoteRef === 'string' &&
+        quoteRef.length > 0 &&
+        !UUID_PARAM.test(quoteRef)
+      ) {
+        return reply.code(400).send({ error: 'Invalid quoteRef' })
+      }
 
-    const id = randomUUID()
-    const createdAt = new Date().toISOString()
-    const record = {
-      id,
-      createdAt,
-      projectType,
-      addOnIds,
-      extraSections: extraSections ?? '0',
-      min: minNum,
-      max: maxNum,
-      lang: typeof lang === 'string' ? lang : 'en',
-      quoteRef: typeof quoteRef === 'string' ? quoteRef : null,
-      summary: typeof summary === 'string' ? summary : null,
-    }
+      const id = randomUUID()
+      const createdAt = new Date().toISOString()
+      const extraStored =
+        extraSections === undefined || extraSections === null
+          ? '0'
+          : String(extraSections)
 
-    await appendQuote(record)
-    return reply.code(201).send({
-      id,
-      createdAt,
-      path: `/api/v1/quotes/${id}`,
-    })
-  })
+      const record = {
+        id,
+        createdAt,
+        projectType,
+        addOnIds,
+        extraSections: extraStored,
+        min: minNum,
+        max: maxNum,
+        lang: typeof lang === 'string' ? lang : 'en',
+        quoteRef: typeof quoteRef === 'string' ? quoteRef : null,
+        summary: typeof summary === 'string' ? summary : null,
+      }
+
+      await appendQuote(record)
+      return reply.code(201).send({
+        id,
+        createdAt,
+        path: `/api/v1/quotes/${id}`,
+        loadQuery: `?load=${id}`,
+      })
+    }
+  )
 
   app.get('/api/v1/quotes/:id', async (request, reply) => {
     const { id } = request.params
