@@ -1,0 +1,18 @@
+# Deploy on Render: https://render.com — New → Blueprint
+services:
+  - type: web
+    name: pixelayer-estimator-api
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ORIGIN
+        sync: false
+      - key: LIST_QUOTES_TOKEN
+        sync: false
+      - key: DATA_DIR
+        value: /var/data

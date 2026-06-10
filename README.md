@@ -59,6 +59,23 @@ curl -s "http://localhost:3000/api/v1/quotes?limit=5" \
 | `DATA_DIR` | Override directory for `quotes.json` |
 | `LIST_QUOTES_TOKEN` | Optional bearer token that protects `GET /api/v1/quotes`; leave empty for local/dev compatibility |
 
+## Deploy (Docker / Render / Railway)
+
+### Docker
+
+```bash
+docker build -t pixelayer-estimator-api .
+docker run -p 3000:3000 -e CORS_ORIGIN=https://pixellayer7-jpg.github.io/project-estimator pixelayer-estimator-api
+```
+
+### Render (one-click blueprint)
+
+Repo includes **`render.yaml`**. On [Render](https://render.com): **New → Blueprint** → connect this repo. Set **`CORS_ORIGIN`** to your calculator Pages URL and optional **`LIST_QUOTES_TOKEN`**.
+
+### Wire the calculator
+
+After deploy, add GitHub secret **`VITE_QUOTE_API_URL`** on **project-estimator** (your API HTTPS origin, no trailing slash) and re-run **Deploy to GitHub Pages**. Users can then **Save online copy** and share **`?load=<uuid>`** links.
+
 ## Deploy without your own domain
 
 Use **Railway**, **Render**, **Fly.io**, etc.: they provide a **HTTPS subdomain**. Set `CORS_ORIGIN` to your **project-estimator** Pages URL when you wire the frontend. For production, set `LIST_QUOTES_TOKEN` so the recent-quotes list is not publicly browsable; individual quote share links (`GET /api/v1/quotes/:id`) remain public by UUID.
