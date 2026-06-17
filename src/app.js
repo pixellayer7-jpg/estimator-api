@@ -4,7 +4,10 @@ import { fileURLToPath } from 'node:url'
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import { randomUUID, timingSafeEqual } from 'node:crypto'
-import { appendQuote, findQuoteById, listQuotesRecent } from './store.js'
+import { appendQuote, findQuoteById, listQuotesRecent, checkStorageReady } from './store.js'
+
+const PROJECT_TYPES = ['landing', 'website', 'dashboard']
+const ADDON_IDS = ['design', 'i18n', 'rush']
 
 /** RFC 9562 UUID v1–v5 shape (ids from `randomUUID`). */
 const UUID_PARAM =
@@ -15,8 +18,11 @@ const postQuoteBodySchema = {
   type: 'object',
   required: ['projectType', 'addOnIds', 'min', 'max'],
   properties: {
-    projectType: { type: 'string', minLength: 1 },
-    addOnIds: { type: 'array', items: { type: 'string' } },
+    projectType: { type: 'string', enum: PROJECT_TYPES },
+    addOnIds: {
+      type: 'array',
+      items: { type: 'string', enum: ADDON_IDS },
+    },
     extraSections: { anyOf: [{ type: 'string' }, { type: 'number' }] },
     min: { anyOf: [{ type: 'number' }, { type: 'string' }] },
     max: { anyOf: [{ type: 'number' }, { type: 'string' }] },
@@ -24,7 +30,7 @@ const postQuoteBodySchema = {
     quoteRef: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     summary: { anyOf: [{ type: 'string' }, { type: 'null' }] },
   },
-  additionalProperties: true,
+  additionalProperties: false,
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -97,7 +103,19 @@ export default async function buildApp() {
     },
   }))
 
-  app.get('/health', async () => ({ ok: true, service: 'estimator-api' }))
+  app.get('/health', async (_request, reply) => {
+    try {
+      await checkStorageReady()
+      return { ok: true, service: 'estimator-api', storage: 'ready' }
+    } catch (e) {
+      return reply.code(503).send({
+        ok: false,
+        service: 'estimator-api',
+        storage: 'unavailable',
+        error: e instanceof Error ? e.message : 'Storage check failed',
+      })
+    }
+  })
 
   app.get('/api/v1/quotes', async (request, reply) => {
     if (!authorizeQuoteList(request, reply)) return
@@ -149,10 +167,14 @@ export default async function buildApp() {
 
       const id = randomUUID()
       const createdAt = new Date().toISOString()
-      const extraStored =
+      const extraStoredRaw =
         extraSections === undefined || extraSections === null
-          ? '0'
-          : String(extraSections)
+          ? 0
+          : Number(extraSections)
+      const extraClamped = Number.isFinite(extraStoredRaw)
+        ? Math.min(20, Math.max(0, Math.floor(extraStoredRaw)))
+        : 0
+      const extraStored = String(extraClamped)
 
       const record = {
         id,

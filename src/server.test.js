@@ -58,6 +58,7 @@ describe('estimator-api', () => {
     assert.strictEqual(res.headers['x-content-type-options'], 'nosniff')
     const body = JSON.parse(res.body)
     assert.strictEqual(body.ok, true)
+    assert.strictEqual(body.storage, 'ready')
   })
 
   it('POST rejects oversized JSON body', async () => {
@@ -322,5 +323,46 @@ describe('estimator-api', () => {
     })
     assert.strictEqual(post.statusCode, 400)
     assert.strictEqual(JSON.parse(post.body).error, 'Invalid request body')
+  })
+
+  it('GET missing quote returns 404', async () => {
+    const res = await app.inject({
+      url: '/api/v1/quotes/11111111-1111-4111-8111-111111111111',
+    })
+    assert.strictEqual(res.statusCode, 404)
+  })
+
+  it('POST rejects unknown projectType enum', async () => {
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/v1/quotes',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        projectType: 'invalid-type',
+        addOnIds: [],
+        min: 1,
+        max: 2,
+      }),
+    })
+    assert.strictEqual(post.statusCode, 400)
+  })
+
+  it('POST clamps extraSections above 20', async () => {
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/v1/quotes',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        projectType: 'landing',
+        addOnIds: [],
+        extraSections: 99,
+        min: 100,
+        max: 200,
+      }),
+    })
+    assert.strictEqual(post.statusCode, 201)
+    const { id } = JSON.parse(post.body)
+    const get = await app.inject({ url: `/api/v1/quotes/${id}` })
+    assert.strictEqual(JSON.parse(get.body).extraSections, '20')
   })
 })

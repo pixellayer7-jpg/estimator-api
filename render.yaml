@@ -1,12 +1,16 @@
 # Deploy on Render: https://render.com — New → Blueprint
 services:
   - type: web
-    name: pixelayer-estimator-api
+    name: pixellayer-estimator-api
     runtime: node
     plan: free
     buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /health
+    disk:
+      name: estimator-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production

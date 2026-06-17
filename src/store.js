@@ -1,8 +1,11 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile, rename, unlink } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
+const MAX_QUOTES = 10_000
+
+let appendQueue = Promise.resolve()
 
 function dataPath() {
   const root = join(__dirname, '..')
@@ -27,17 +30,29 @@ export async function readQuotes() {
   }
 }
 
-export async function writeQuotes(quotes) {
+async function writeQuotesAtomic(quotes) {
   const { dir, file } = dataPath()
   await ensureDir(dir)
-  await writeFile(file, JSON.stringify(quotes), 'utf8')
+  const tmp = `${file}.tmp`
+  await writeFile(tmp, JSON.stringify(quotes), 'utf8')
+  await rename(tmp, file)
+}
+
+export async function writeQuotes(quotes) {
+  await writeQuotesAtomic(quotes)
 }
 
 export async function appendQuote(record) {
-  const quotes = await readQuotes()
-  quotes.push(record)
-  await writeQuotes(quotes)
-  return record
+  appendQueue = appendQueue.then(async () => {
+    let quotes = await readQuotes()
+    quotes.push(record)
+    if (quotes.length > MAX_QUOTES) {
+      quotes = quotes.slice(-MAX_QUOTES)
+    }
+    await writeQuotesAtomic(quotes)
+    return record
+  })
+  return appendQueue
 }
 
 export async function findQuoteById(id) {
@@ -58,4 +73,15 @@ export async function listQuotesRecent(limit = 20) {
     max: q.max,
     lang: q.lang,
   }))
+}
+
+/** Verify DATA_DIR is writable (for /health). */
+export async function checkStorageReady() {
+  const { dir } = dataPath()
+  await ensureDir(dir)
+  const probe = join(dir, '.write-probe')
+  await writeFile(probe, 'ok', 'utf8')
+  const raw = await readFile(probe, 'utf8')
+  await unlink(probe).catch(() => {})
+  if (raw !== 'ok') throw new Error('Storage probe failed')
 }
