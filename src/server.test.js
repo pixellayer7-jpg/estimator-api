@@ -59,6 +59,7 @@ describe('estimator-api', () => {
     const body = JSON.parse(res.body)
     assert.strictEqual(body.ok, true)
     assert.strictEqual(body.storage, 'ready')
+    assert.strictEqual(body.version, '0.6.1')
   })
 
   it('POST rejects oversized JSON body', async () => {

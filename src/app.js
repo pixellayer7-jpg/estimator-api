@@ -106,11 +106,12 @@ export default async function buildApp() {
   app.get('/health', async (_request, reply) => {
     try {
       await checkStorageReady()
-      return { ok: true, service: 'estimator-api', storage: 'ready' }
+      return { ok: true, service: 'estimator-api', version: pkg.version, storage: 'ready' }
     } catch (e) {
       return reply.code(503).send({
         ok: false,
         service: 'estimator-api',
+        version: pkg.version,
         storage: 'unavailable',
         error: e instanceof Error ? e.message : 'Storage check failed',
       })

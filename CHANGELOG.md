@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.1
+
+- `/health` response includes API `version` (success and failure)
+
 ## 0.6.0
 
 - Atomic quote file writes and serialized append (fewer lost writes under concurrency)

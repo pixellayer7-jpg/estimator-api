@@ -12,7 +12,7 @@ Minimal **Node.js + Fastify** service for **PixelLayer** to **save** calculator 
 | Method | Path | Description |
 |--------|------|---------------|
 | `GET` | `/` | Service name, version, and endpoint map (JSON) |
-| `GET` | `/health` | Liveness check |
+| `GET` | `/health` | Liveness + storage writable check; includes `version` |
 | `GET` | `/api/v1/quotes?limit=20` | List recent quotes (newest first); each item omits `summary`. `limit` 1–100, default 20. Set **`LIST_QUOTES_TOKEN`** to require `Authorization: Bearer <token>` for this list endpoint in production. |
 | `POST` | `/api/v1/quotes` | Save a quote snapshot (JSON body validated with JSON Schema; invalid body → **400**; `lang` must be **`en`** or **`zh`** if sent; `min` ≤ `max` (finite numbers); **`quoteRef`** must be a UUID when provided; **`extraSections`** stored as a **string**; max **256 KiB** → **413**) → returns `{ id, createdAt, path, loadQuery }` where **`loadQuery`** is `?load=<id>` for the calculator UI |
 | `GET` | `/api/v1/quotes/:id` | Load one saved quote (`id` must be a UUID string; malformed ids → **400**) |
