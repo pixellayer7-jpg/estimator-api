@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.2
+
+- `GET /` includes `links` to live landing and calculator demos
+- All JSON responses include `X-API-Version` header
+
 ## 0.6.1
 
 - `/health` response includes API `version` (success and failure)

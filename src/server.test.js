@@ -47,8 +47,11 @@ describe('estimator-api', () => {
     const res = await app.inject({ method: 'GET', url: '/' })
     assert.strictEqual(res.statusCode, 200)
     assert.strictEqual(res.headers['x-content-type-options'], 'nosniff')
+    assert.strictEqual(res.headers['x-api-version'], '0.6.2')
     const body = JSON.parse(res.body)
     assert.strictEqual(body.service, 'estimator-api')
+    assert.ok(body.links?.landing)
+    assert.ok(body.links?.calculator)
     assert.ok(body.endpoints?.health)
   })
 
@@ -59,7 +62,7 @@ describe('estimator-api', () => {
     const body = JSON.parse(res.body)
     assert.strictEqual(body.ok, true)
     assert.strictEqual(body.storage, 'ready')
-    assert.strictEqual(body.version, '0.6.1')
+    assert.strictEqual(body.version, '0.6.2')
   })
 
   it('POST rejects oversized JSON body', async () => {

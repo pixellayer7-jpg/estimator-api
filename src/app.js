@@ -77,6 +77,7 @@ export default async function buildApp() {
 
   app.addHook('onSend', async (_request, reply, payload) => {
     reply.header('X-Content-Type-Options', 'nosniff')
+    reply.header('X-API-Version', pkg.version)
     return payload
   })
 
@@ -95,6 +96,10 @@ export default async function buildApp() {
   app.get('/', async () => ({
     service: 'estimator-api',
     version: pkg.version,
+    links: {
+      landing: 'https://pixellayer7-jpg.github.io/1/',
+      calculator: 'https://pixellayer7-jpg.github.io/project-estimator/',
+    },
     endpoints: {
       health: '/health',
       listQuotes: 'GET /api/v1/quotes?limit=20',
