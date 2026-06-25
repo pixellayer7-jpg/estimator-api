@@ -47,7 +47,7 @@ describe('estimator-api', () => {
     const res = await app.inject({ method: 'GET', url: '/' })
     assert.strictEqual(res.statusCode, 200)
     assert.strictEqual(res.headers['x-content-type-options'], 'nosniff')
-    assert.strictEqual(res.headers['x-api-version'], '0.6.2')
+    assert.strictEqual(res.headers['x-api-version'], '0.7.0')
     const body = JSON.parse(res.body)
     assert.strictEqual(body.service, 'estimator-api')
     assert.ok(body.links?.landing)
@@ -62,7 +62,7 @@ describe('estimator-api', () => {
     const body = JSON.parse(res.body)
     assert.strictEqual(body.ok, true)
     assert.strictEqual(body.storage, 'ready')
-    assert.strictEqual(body.version, '0.6.2')
+    assert.strictEqual(body.version, '0.7.0')
   })
 
   it('POST rejects oversized JSON body', async () => {
@@ -368,5 +368,13 @@ describe('estimator-api', () => {
     const { id } = JSON.parse(post.body)
     const get = await app.inject({ url: `/api/v1/quotes/${id}` })
     assert.strictEqual(JSON.parse(get.body).extraSections, '20')
+  })
+
+  it('GET /api/v1/openapi.json returns OpenAPI spec', async () => {
+    const res = await app.inject({ url: '/api/v1/openapi.json' })
+    assert.strictEqual(res.statusCode, 200)
+    const body = JSON.parse(res.body)
+    assert.strictEqual(body.openapi, '3.0.3')
+    assert.ok(body.paths['/api/v1/quotes'])
   })
 })

@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
+import rateLimit from '@fastify/rate-limit'
 import { randomUUID, timingSafeEqual } from 'node:crypto'
 import { appendQuote, findQuoteById, listQuotesRecent, checkStorageReady } from './store.js'
 
@@ -75,6 +76,11 @@ export default async function buildApp() {
     origin: origins.length ? origins : true,
   })
 
+  await app.register(rateLimit, {
+    max: 100,
+    timeWindow: '1 minute',
+  })
+
   app.addHook('onSend', async (_request, reply, payload) => {
     reply.header('X-Content-Type-Options', 'nosniff')
     reply.header('X-API-Version', pkg.version)
@@ -105,6 +111,23 @@ export default async function buildApp() {
       listQuotes: 'GET /api/v1/quotes?limit=20',
       createQuote: 'POST /api/v1/quotes',
       getQuote: 'GET /api/v1/quotes/:id',
+      openapi: 'GET /api/v1/openapi.json',
+    },
+  }))
+
+  app.get('/api/v1/openapi.json', async () => ({
+    openapi: '3.0.3',
+    info: {
+      title: 'PixelLayer estimator-api',
+      version: pkg.version,
+    },
+    paths: {
+      '/health': { get: { summary: 'Health + storage check' } },
+      '/api/v1/quotes': {
+        get: { summary: 'List recent quotes (optional Bearer)' },
+        post: { summary: 'Create quote snapshot', requestBody: { content: { 'application/json': { schema: postQuoteBodySchema } } } },
+      },
+      '/api/v1/quotes/{id}': { get: { summary: 'Get quote by UUID' } },
     },
   }))
 
@@ -137,7 +160,10 @@ export default async function buildApp() {
 
   app.post(
     '/api/v1/quotes',
-    { schema: { body: postQuoteBodySchema } },
+    {
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+      schema: { body: postQuoteBodySchema },
+    },
     async (request, reply) => {
       const body = request.body
       const {

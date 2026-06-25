@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.0
+
+- POST `/api/v1/quotes` rate limit: 30 requests / minute per IP
+- GET `/api/v1/openapi.json` — minimal OpenAPI 3 spec
+- `docker-compose.yml` for local dev with persistent volume
+
 ## 0.6.2
 
 - `GET /` includes `links` to live landing and calculator demos

@@ -1,0 +1,14 @@
+services:
+  api:
+    build: .
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: development
+      DATA_DIR: /var/data
+      CORS_ORIGIN: http://localhost:5173,https://pixellayer7-jpg.github.io
+    volumes:
+      - estimator-data:/var/data
+
+volumes:
+  estimator-data:
