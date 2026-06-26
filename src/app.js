@@ -5,7 +5,7 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import rateLimit from '@fastify/rate-limit'
 import { randomUUID, timingSafeEqual } from 'node:crypto'
-import { appendQuote, findQuoteById, listQuotesRecent, checkStorageReady } from './store.js'
+import { appendQuote, findQuoteById, listQuotesRecent, checkStorageReady, countQuotes } from './store.js'
 
 const PROJECT_TYPES = ['landing', 'website', 'dashboard']
 const ADDON_IDS = ['design', 'i18n', 'rush']
@@ -112,6 +112,7 @@ export default async function buildApp() {
       createQuote: 'POST /api/v1/quotes',
       getQuote: 'GET /api/v1/quotes/:id',
       openapi: 'GET /api/v1/openapi.json',
+      stats: 'GET /api/v1/stats',
     },
   }))
 
@@ -130,6 +131,11 @@ export default async function buildApp() {
       '/api/v1/quotes/{id}': { get: { summary: 'Get quote by UUID' } },
     },
   }))
+
+  app.get('/api/v1/stats', async () => {
+    const total = await countQuotes()
+    return { totalQuotes: total, version: pkg.version }
+  })
 
   app.get('/health', async (_request, reply) => {
     try {

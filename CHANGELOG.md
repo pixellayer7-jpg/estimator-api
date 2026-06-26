@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.1
+
+- `GET /api/v1/stats` — `{ totalQuotes, version }` for lightweight monitoring
+
 ## 0.7.0
 
 - POST `/api/v1/quotes` rate limit: 30 requests / minute per IP

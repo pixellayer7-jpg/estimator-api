@@ -75,6 +75,12 @@ export async function listQuotesRecent(limit = 20) {
   }))
 }
 
+/** Total stored quotes (for stats endpoint). */
+export async function countQuotes() {
+  const quotes = await readQuotes()
+  return quotes.length
+}
+
 /** Verify DATA_DIR is writable (for /health). */
 export async function checkStorageReady() {
   const { dir } = dataPath()
