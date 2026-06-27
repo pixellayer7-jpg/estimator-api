@@ -5,10 +5,13 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import rateLimit from '@fastify/rate-limit'
 import { randomUUID, timingSafeEqual } from 'node:crypto'
-import { appendQuote, findQuoteById, listQuotesRecent, checkStorageReady, countQuotes } from './store.js'
+import { appendQuote, findQuoteById, listQuotesRecent, checkStorageReady, countQuotes, updateQuoteById } from './store.js'
+import { appendLead, listLeadsRecent, countLeads } from './leadsStore.js'
 
 const PROJECT_TYPES = ['landing', 'website', 'dashboard']
 const ADDON_IDS = ['design', 'i18n', 'rush']
+const QUOTE_STATUSES = ['draft', 'sent', 'accepted', 'declined']
+const LEAD_SOURCES = ['landing', 'calculator']
 
 /** RFC 9562 UUID v1–v5 shape (ids from `randomUUID`). */
 const UUID_PARAM =
@@ -30,6 +33,32 @@ const postQuoteBodySchema = {
     lang: { enum: ['en', 'zh'] },
     quoteRef: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     summary: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+  },
+  additionalProperties: false,
+}
+
+const postLeadBodySchema = {
+  type: 'object',
+  required: ['name', 'email', 'message'],
+  properties: {
+    name: { type: 'string', minLength: 1, maxLength: 200 },
+    email: { type: 'string', minLength: 3, maxLength: 320 },
+    message: { type: 'string', minLength: 1, maxLength: 8000 },
+    subject: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    projectType: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    timeline: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    quoteRef: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    source: { enum: LEAD_SOURCES },
+    lang: { enum: ['en', 'zh'] },
+  },
+  additionalProperties: false,
+}
+
+const patchQuoteBodySchema = {
+  type: 'object',
+  required: ['status'],
+  properties: {
+    status: { type: 'string', enum: QUOTE_STATUSES },
   },
   additionalProperties: false,
 }
@@ -111,6 +140,9 @@ export default async function buildApp() {
       listQuotes: 'GET /api/v1/quotes?limit=20',
       createQuote: 'POST /api/v1/quotes',
       getQuote: 'GET /api/v1/quotes/:id',
+      patchQuote: 'PATCH /api/v1/quotes/:id',
+      createLead: 'POST /api/v1/leads',
+      listLeads: 'GET /api/v1/leads?limit=20',
       openapi: 'GET /api/v1/openapi.json',
       stats: 'GET /api/v1/stats',
     },
@@ -128,13 +160,30 @@ export default async function buildApp() {
         get: { summary: 'List recent quotes (optional Bearer)' },
         post: { summary: 'Create quote snapshot', requestBody: { content: { 'application/json': { schema: postQuoteBodySchema } } } },
       },
-      '/api/v1/quotes/{id}': { get: { summary: 'Get quote by UUID' } },
+      '/api/v1/quotes/{id}': {
+        get: { summary: 'Get quote by UUID' },
+        patch: {
+          summary: 'Update quote status (Bearer required when LIST_QUOTES_TOKEN set)',
+          requestBody: { content: { 'application/json': { schema: patchQuoteBodySchema } } },
+        },
+      },
+      '/api/v1/leads': {
+        get: { summary: 'List recent leads (optional Bearer)' },
+        post: {
+          summary: 'Create contact lead',
+          requestBody: { content: { 'application/json': { schema: postLeadBodySchema } } },
+        },
+      },
+      '/api/v1/stats': { get: { summary: 'Quote and lead counts' } },
     },
   }))
 
   app.get('/api/v1/stats', async () => {
-    const total = await countQuotes()
-    return { totalQuotes: total, version: pkg.version }
+    const [totalQuotes, totalLeads] = await Promise.all([
+      countQuotes(),
+      countLeads(),
+    ])
+    return { totalQuotes, totalLeads, version: pkg.version }
   })
 
   app.get('/health', async (_request, reply) => {
@@ -225,6 +274,7 @@ export default async function buildApp() {
         lang: typeof lang === 'string' ? lang : 'en',
         quoteRef: typeof quoteRef === 'string' ? quoteRef : null,
         summary: typeof summary === 'string' ? summary : null,
+        status: 'draft',
       }
 
       await appendQuote(record)
@@ -246,6 +296,74 @@ export default async function buildApp() {
     if (!row) return reply.code(404).send({ error: 'Not found' })
     return row
   })
+
+  app.patch(
+    '/api/v1/quotes/:id',
+    { schema: { body: patchQuoteBodySchema } },
+    async (request, reply) => {
+      if (!authorizeQuoteList(request, reply)) return
+      const { id } = request.params
+      if (!UUID_PARAM.test(id)) {
+        return reply.code(400).send({ error: 'Invalid id' })
+      }
+      const row = await findQuoteById(id)
+      if (!row) return reply.code(404).send({ error: 'Not found' })
+      const updated = await updateQuoteById(id, { status: request.body.status })
+      return updated
+    }
+  )
+
+  app.get('/api/v1/leads', async (request, reply) => {
+    if (!authorizeQuoteList(request, reply)) return
+    let limit = 20
+    const raw = request.query.limit
+    if (raw !== undefined && raw !== '') {
+      const p = Number.parseInt(String(raw), 10)
+      if (Number.isFinite(p)) limit = p
+    }
+    const items = await listLeadsRecent(limit)
+    return { count: items.length, items }
+  })
+
+  app.post(
+    '/api/v1/leads',
+    {
+      config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+      schema: { body: postLeadBodySchema },
+    },
+    async (request, reply) => {
+      const body = request.body
+      const { name, email, message, subject, projectType, timeline, quoteRef, source, lang } =
+        body
+
+      if (
+        typeof quoteRef === 'string' &&
+        quoteRef.length > 0 &&
+        !UUID_PARAM.test(quoteRef)
+      ) {
+        return reply.code(400).send({ error: 'Invalid quoteRef' })
+      }
+
+      const id = randomUUID()
+      const createdAt = new Date().toISOString()
+      const record = {
+        id,
+        createdAt,
+        name: String(name).trim(),
+        email: String(email).trim(),
+        message: String(message).trim(),
+        subject: typeof subject === 'string' ? subject.trim() : null,
+        projectType: typeof projectType === 'string' ? projectType.trim() : null,
+        timeline: typeof timeline === 'string' ? timeline.trim() : null,
+        quoteRef: typeof quoteRef === 'string' ? quoteRef.trim() : null,
+        source: typeof source === 'string' ? source : 'landing',
+        lang: typeof lang === 'string' ? lang : 'en',
+      }
+
+      await appendLead(record)
+      return reply.code(201).send({ id, createdAt, path: `/api/v1/leads/${id}` })
+    }
+  )
 
   app.setNotFoundHandler((_request, reply) => {
     reply.code(404).send({ error: 'Not found' })

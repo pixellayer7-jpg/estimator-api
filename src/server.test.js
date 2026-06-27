@@ -47,7 +47,7 @@ describe('estimator-api', () => {
     const res = await app.inject({ method: 'GET', url: '/' })
     assert.strictEqual(res.statusCode, 200)
     assert.strictEqual(res.headers['x-content-type-options'], 'nosniff')
-    assert.strictEqual(res.headers['x-api-version'], '0.7.1')
+    assert.strictEqual(res.headers['x-api-version'], '1.0.0')
     const body = JSON.parse(res.body)
     assert.strictEqual(body.service, 'estimator-api')
     assert.ok(body.links?.landing)
@@ -62,7 +62,7 @@ describe('estimator-api', () => {
     const body = JSON.parse(res.body)
     assert.strictEqual(body.ok, true)
     assert.strictEqual(body.storage, 'ready')
-    assert.strictEqual(body.version, '0.7.1')
+    assert.strictEqual(body.version, '1.0.0')
   })
 
   it('POST rejects oversized JSON body', async () => {
@@ -383,6 +383,53 @@ describe('estimator-api', () => {
     assert.strictEqual(res.statusCode, 200)
     const body = JSON.parse(res.body)
     assert.ok(typeof body.totalQuotes === 'number')
-    assert.strictEqual(body.version, '0.7.1')
+    assert.ok(typeof body.totalLeads === 'number')
+    assert.strictEqual(body.version, '1.0.0')
+  })
+
+  it('POST /api/v1/leads then GET list', async () => {
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/v1/leads',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        name: 'Test Lead',
+        email: 'lead@example.com',
+        message: 'Hello from test',
+        source: 'landing',
+        lang: 'en',
+      }),
+    })
+    assert.strictEqual(post.statusCode, 201)
+    const list = await app.inject({ url: '/api/v1/leads' })
+    assert.strictEqual(list.statusCode, 200)
+    const body = JSON.parse(list.body)
+    assert.ok(body.items.some((l) => l.email === 'lead@example.com'))
+  })
+
+  it('PATCH /api/v1/quotes/:id updates status', async () => {
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/v1/quotes',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        projectType: 'landing',
+        addOnIds: [],
+        min: 800,
+        max: 1200,
+      }),
+    })
+    assert.strictEqual(post.statusCode, 201)
+    const { id } = JSON.parse(post.body)
+    const patch = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/quotes/${id}`,
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({ status: 'sent' }),
+    })
+    assert.strictEqual(patch.statusCode, 200)
+    assert.strictEqual(JSON.parse(patch.body).status, 'sent')
+    const get = await app.inject({ url: `/api/v1/quotes/${id}` })
+    assert.strictEqual(JSON.parse(get.body).status, 'sent')
   })
 })

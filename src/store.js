@@ -72,7 +72,23 @@ export async function listQuotesRecent(limit = 20) {
     min: q.min,
     max: q.max,
     lang: q.lang,
+    status: q.status || 'draft',
   }))
+}
+
+export async function updateQuoteById(id, patch) {
+  let updated = null
+  appendQueue = appendQueue.then(async () => {
+    const quotes = await readQuotes()
+    const idx = quotes.findIndex((q) => q.id === id)
+    if (idx === -1) return null
+    updated = { ...quotes[idx], ...patch }
+    quotes[idx] = updated
+    await writeQuotesAtomic(quotes)
+    return updated
+  })
+  await appendQueue
+  return updated
 }
 
 /** Total stored quotes (for stats endpoint). */
