@@ -97,6 +97,17 @@ export async function countQuotes() {
   return quotes.length
 }
 
+export async function quoteStatusBreakdown() {
+  const quotes = await readQuotes()
+  const counts = { draft: 0, sent: 0, accepted: 0, declined: 0 }
+  for (const q of quotes) {
+    const s = q.status || 'draft'
+    if (s in counts) counts[s] += 1
+    else counts.draft += 1
+  }
+  return counts
+}
+
 /** Verify DATA_DIR is writable (for /health). */
 export async function checkStorageReady() {
   const { dir } = dataPath()

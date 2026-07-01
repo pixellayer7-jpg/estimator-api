@@ -54,10 +54,51 @@ export async function appendLead(record) {
 export async function listLeadsRecent(limit = 20) {
   const leads = await readLeads()
   const n = Math.min(100, Math.max(1, Math.floor(limit) || 20))
-  return leads.slice(-n).reverse()
+  return leads.slice(-n).reverse().map((l) => ({
+    id: l.id,
+    createdAt: l.createdAt,
+    name: l.name,
+    email: l.email,
+    source: l.source,
+    status: l.status || 'new',
+    quoteRef: l.quoteRef ?? null,
+    projectType: l.projectType ?? null,
+  }))
 }
 
 export async function countLeads() {
   const leads = await readLeads()
   return leads.length
+}
+
+export async function findLeadById(id) {
+  const leads = await readLeads()
+  return leads.find((l) => l.id === id) ?? null
+}
+
+export async function updateLeadById(id, patch) {
+  let updated = null
+  appendQueue = appendQueue.then(async () => {
+    const leads = await readLeads()
+    const idx = leads.findIndex((l) => l.id === id)
+    if (idx === -1) return null
+    updated = { ...leads[idx], ...patch }
+    leads[idx] = updated
+    await writeLeadsAtomic(leads)
+    return updated
+  })
+  await appendQueue
+  return updated
+}
+
+/** Status counts for /api/v1/stats */
+export async function leadStatusBreakdown() {
+  const leads = await readLeads()
+  const counts = { new: 0, contacted: 0, qualified: 0, closed: 0 }
+  for (const l of leads) {
+    const s = l.status || 'new'
+    if (s in counts) counts[s] += 1
+    else counts.new += 1
+  }
+  return counts
 }

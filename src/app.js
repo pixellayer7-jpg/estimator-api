@@ -5,12 +5,13 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import rateLimit from '@fastify/rate-limit'
 import { randomUUID, timingSafeEqual } from 'node:crypto'
-import { appendQuote, findQuoteById, listQuotesRecent, checkStorageReady, countQuotes, updateQuoteById } from './store.js'
-import { appendLead, listLeadsRecent, countLeads } from './leadsStore.js'
+import { appendQuote, findQuoteById, listQuotesRecent, checkStorageReady, countQuotes, updateQuoteById, quoteStatusBreakdown } from './store.js'
+import { appendLead, listLeadsRecent, countLeads, findLeadById, updateLeadById, leadStatusBreakdown } from './leadsStore.js'
 
 const PROJECT_TYPES = ['landing', 'website', 'dashboard']
 const ADDON_IDS = ['design', 'i18n', 'rush']
 const QUOTE_STATUSES = ['draft', 'sent', 'accepted', 'declined']
+const LEAD_STATUSES = ['new', 'contacted', 'qualified', 'closed']
 const LEAD_SOURCES = ['landing', 'calculator']
 
 /** RFC 9562 UUID v1–v5 shape (ids from `randomUUID`). */
@@ -59,6 +60,15 @@ const patchQuoteBodySchema = {
   required: ['status'],
   properties: {
     status: { type: 'string', enum: QUOTE_STATUSES },
+  },
+  additionalProperties: false,
+}
+
+const patchLeadBodySchema = {
+  type: 'object',
+  required: ['status'],
+  properties: {
+    status: { type: 'string', enum: LEAD_STATUSES },
   },
   additionalProperties: false,
 }
@@ -143,6 +153,8 @@ export default async function buildApp() {
       patchQuote: 'PATCH /api/v1/quotes/:id',
       createLead: 'POST /api/v1/leads',
       listLeads: 'GET /api/v1/leads?limit=20',
+      getLead: 'GET /api/v1/leads/:id',
+      patchLead: 'PATCH /api/v1/leads/:id',
       openapi: 'GET /api/v1/openapi.json',
       stats: 'GET /api/v1/stats',
     },
@@ -174,16 +186,32 @@ export default async function buildApp() {
           requestBody: { content: { 'application/json': { schema: postLeadBodySchema } } },
         },
       },
-      '/api/v1/stats': { get: { summary: 'Quote and lead counts' } },
+      '/api/v1/leads/{id}': {
+        get: { summary: 'Get lead by UUID (Bearer when LIST_QUOTES_TOKEN set)' },
+        patch: {
+          summary: 'Update lead status',
+          requestBody: { content: { 'application/json': { schema: patchLeadBodySchema } } },
+        },
+      },
+      '/api/v1/stats': { get: { summary: 'Quote and lead counts with status breakdown' } },
     },
   }))
 
   app.get('/api/v1/stats', async () => {
-    const [totalQuotes, totalLeads] = await Promise.all([
-      countQuotes(),
-      countLeads(),
-    ])
-    return { totalQuotes, totalLeads, version: pkg.version }
+    const [totalQuotes, totalLeads, quotesByStatus, leadsByStatus] =
+      await Promise.all([
+        countQuotes(),
+        countLeads(),
+        quoteStatusBreakdown(),
+        leadStatusBreakdown(),
+      ])
+    return {
+      totalQuotes,
+      totalLeads,
+      quotesByStatus,
+      leadsByStatus,
+      version: pkg.version,
+    }
   })
 
   app.get('/health', async (_request, reply) => {
@@ -358,10 +386,38 @@ export default async function buildApp() {
         quoteRef: typeof quoteRef === 'string' ? quoteRef.trim() : null,
         source: typeof source === 'string' ? source : 'landing',
         lang: typeof lang === 'string' ? lang : 'en',
+        status: 'new',
       }
 
       await appendLead(record)
       return reply.code(201).send({ id, createdAt, path: `/api/v1/leads/${id}` })
+    }
+  )
+
+  app.get('/api/v1/leads/:id', async (request, reply) => {
+    if (!authorizeQuoteList(request, reply)) return
+    const { id } = request.params
+    if (!UUID_PARAM.test(id)) {
+      return reply.code(400).send({ error: 'Invalid id' })
+    }
+    const row = await findLeadById(id)
+    if (!row) return reply.code(404).send({ error: 'Not found' })
+    return row
+  })
+
+  app.patch(
+    '/api/v1/leads/:id',
+    { schema: { body: patchLeadBodySchema } },
+    async (request, reply) => {
+      if (!authorizeQuoteList(request, reply)) return
+      const { id } = request.params
+      if (!UUID_PARAM.test(id)) {
+        return reply.code(400).send({ error: 'Invalid id' })
+      }
+      const row = await findLeadById(id)
+      if (!row) return reply.code(404).send({ error: 'Not found' })
+      const updated = await updateLeadById(id, { status: request.body.status })
+      return updated
     }
   )
 

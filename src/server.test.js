@@ -47,7 +47,7 @@ describe('estimator-api', () => {
     const res = await app.inject({ method: 'GET', url: '/' })
     assert.strictEqual(res.statusCode, 200)
     assert.strictEqual(res.headers['x-content-type-options'], 'nosniff')
-    assert.strictEqual(res.headers['x-api-version'], '1.0.0')
+    assert.strictEqual(res.headers['x-api-version'], '1.1.0')
     const body = JSON.parse(res.body)
     assert.strictEqual(body.service, 'estimator-api')
     assert.ok(body.links?.landing)
@@ -62,7 +62,7 @@ describe('estimator-api', () => {
     const body = JSON.parse(res.body)
     assert.strictEqual(body.ok, true)
     assert.strictEqual(body.storage, 'ready')
-    assert.strictEqual(body.version, '1.0.0')
+    assert.strictEqual(body.version, '1.1.0')
   })
 
   it('POST rejects oversized JSON body', async () => {
@@ -384,7 +384,9 @@ describe('estimator-api', () => {
     const body = JSON.parse(res.body)
     assert.ok(typeof body.totalQuotes === 'number')
     assert.ok(typeof body.totalLeads === 'number')
-    assert.strictEqual(body.version, '1.0.0')
+    assert.ok(body.quotesByStatus)
+    assert.ok(body.leadsByStatus)
+    assert.strictEqual(body.version, '1.1.0')
   })
 
   it('POST /api/v1/leads then GET list', async () => {
@@ -431,5 +433,30 @@ describe('estimator-api', () => {
     assert.strictEqual(JSON.parse(patch.body).status, 'sent')
     const get = await app.inject({ url: `/api/v1/quotes/${id}` })
     assert.strictEqual(JSON.parse(get.body).status, 'sent')
+  })
+
+  it('PATCH /api/v1/leads/:id updates status', async () => {
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/v1/leads',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        name: 'Patch Lead',
+        email: 'patch@example.com',
+        message: 'Status test',
+        source: 'calculator',
+        lang: 'en',
+      }),
+    })
+    assert.strictEqual(post.statusCode, 201)
+    const { id } = JSON.parse(post.body)
+    const patch = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/leads/${id}`,
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({ status: 'contacted' }),
+    })
+    assert.strictEqual(patch.statusCode, 200)
+    assert.strictEqual(JSON.parse(patch.body).status, 'contacted')
   })
 })

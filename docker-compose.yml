@@ -6,7 +6,8 @@ services:
     environment:
       NODE_ENV: development
       DATA_DIR: /var/data
-      CORS_ORIGIN: http://localhost:5173,https://pixellayer7-jpg.github.io
+      LIST_QUOTES_TOKEN: dev-token
+      CORS_ORIGIN: http://localhost:5173,http://localhost:5174,https://pixellayer7-jpg.github.io
     volumes:
       - estimator-data:/var/data
 

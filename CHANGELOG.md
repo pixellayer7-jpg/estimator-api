@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0
+
+- Lead lifecycle: default `status: new`, PATCH `/api/v1/leads/:id`, GET `/api/v1/leads/:id`
+- `/api/v1/stats` returns `quotesByStatus` and `leadsByStatus` breakdowns
+- `docker-compose.yml` sets `LIST_QUOTES_TOKEN=dev-token` for local CRM
+
 ## 1.0.0
 
 - `POST /api/v1/leads` — store contact form submissions (landing + calculator)
