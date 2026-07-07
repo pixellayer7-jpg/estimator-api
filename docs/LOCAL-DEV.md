@@ -76,7 +76,7 @@ Open **http://localhost:5174/?admin=1**, enter Bearer token `dev-token`, use **S
 
 1. Landing contact form → `POST /api/v1/leads`
 2. Calculator → save quote → `POST /api/v1/quotes`
-3. Handoff to landing `#contact` (same browser, localhost origins differ — use email or lead API instead)
+3. Handoff to landing `#contact` (same browser) **or** share `?quote=<uuid>` (cross-domain)
 4. Admin → PATCH quote/lead status
 
 ## Health check

@@ -84,6 +84,20 @@ function safeTokenEquals(a, b) {
   return aa.length === bb.length && timingSafeEqual(aa, bb)
 }
 
+function buildQuoteShareLinks(id) {
+  const calc = (
+    process.env.FRONTEND_CALCULATOR_URL ||
+    'https://pixellayer7-jpg.github.io/project-estimator/'
+  ).replace(/\/?$/, '/')
+  const landing = (
+    process.env.FRONTEND_LANDING_URL || 'https://pixellayer7-jpg.github.io/1/'
+  ).replace(/\/?$/, '/')
+  return {
+    calculator: `${calc}?load=${encodeURIComponent(id)}`,
+    contact: `${landing}?quote=${encodeURIComponent(id)}#contact`,
+  }
+}
+
 function getBearerToken(request) {
   const header = request.headers.authorization
   if (typeof header !== 'string') return ''
@@ -311,6 +325,7 @@ export default async function buildApp() {
         createdAt,
         path: `/api/v1/quotes/${id}`,
         loadQuery: `?load=${id}`,
+        links: buildQuoteShareLinks(id),
       })
     }
   )

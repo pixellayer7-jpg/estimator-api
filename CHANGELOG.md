@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1
+
+- `POST /api/v1/quotes` response includes `links.calculator` and `links.contact` share URLs
+- Configure via `FRONTEND_CALCULATOR_URL` and `FRONTEND_LANDING_URL`
+
 ## 1.1.0
 
 - Lead lifecycle: default `status: new`, PATCH `/api/v1/leads/:id`, GET `/api/v1/leads/:id`
