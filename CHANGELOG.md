@@ -2,6 +2,7 @@
 
 ## 1.1.1
 
+- Docs: README endpoint table now covers leads, PATCH status, stats, OpenAPI, and share `links`
 - `POST /api/v1/quotes` response includes `links.calculator` and `links.contact` share URLs
 - Configure via `FRONTEND_CALCULATOR_URL` and `FRONTEND_LANDING_URL`
 
