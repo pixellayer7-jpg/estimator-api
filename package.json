@@ -16,7 +16,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "demo:curl": "node docs/demo-curl.mjs"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",

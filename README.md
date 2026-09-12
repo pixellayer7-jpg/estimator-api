@@ -117,6 +117,16 @@ Use **Railway**, **Render**, **Fly.io**, etc.: HTTPS subdomain. Set `CORS_ORIGIN
 npm test
 ```
 
+## Interview: 5-minute curl walkthrough
+
+With the API running (`LIST_QUOTES_TOKEN=dev-token npm start`):
+
+```bash
+npm run demo:curl
+```
+
+Manual curls + talking points: **[docs/CURL-WALKTHROUGH.md](./docs/CURL-WALKTHROUGH.md)**. Local full stack: **[docs/LOCAL-DEV.md](./docs/LOCAL-DEV.md)**.
+
 GitHub Actions (**`.github/workflows/ci.yml`**) runs on push/PR with **`permissions: contents: read`**, **concurrency**, and **Node 20**.
 
 ## Related repos

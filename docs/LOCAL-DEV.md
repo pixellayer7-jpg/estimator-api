@@ -2,6 +2,8 @@
 
 Run the marketing site, calculator, and estimator-api together on your machine — no Stripe, Postgres, or custom domain required.
 
+**API-only interview demo (5 min):** [CURL-WALKTHROUGH.md](./CURL-WALKTHROUGH.md) · `npm run demo:curl`
+
 ## Prerequisites
 
 - Node 20+
