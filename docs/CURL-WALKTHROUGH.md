@@ -115,6 +115,7 @@ Expect `totalQuotes` / `totalLeads` increased; `quotesByStatus.sent` and `leadsB
 | File-backed store | Demo-ready without Postgres |
 | `links.calculator` / `links.contact` | Frontend deep-links from API response |
 
-Frontend walkthrough (no API): https://pixellayer7-jpg.github.io/1/#walkthrough
+Frontend walkthrough (no API): https://pixellayer7-jpg.github.io/1/#walkthrough  
+Interview one-pager: https://github.com/pixellayer7-jpg/pixellayer7-jpg/blob/main/INTERVIEW-DEMO.md
 
 See also: [LOCAL-DEV.md](./LOCAL-DEV.md) · [README.md](../README.md)
