@@ -117,6 +117,350 @@ function authorizeQuoteList(request, reply) {
   return false
 }
 
+function buildOpenApiDocument(version) {
+  const bearer = [{ bearerAuth: [] }]
+  const uuidParam = {
+    name: 'id',
+    in: 'path',
+    required: true,
+    schema: { type: 'string', format: 'uuid' },
+    description: 'RFC 9562 UUID',
+  }
+  const quoteExample = {
+    projectType: 'landing',
+    addOnIds: ['i18n'],
+    extraSections: '2',
+    min: 800,
+    max: 1400,
+    lang: 'en',
+    summary: 'Interview demo quote',
+  }
+  const leadExample = {
+    name: 'Ada Interview',
+    email: 'ada@example.com',
+    message: 'Need a bilingual landing page',
+    source: 'landing',
+    lang: 'en',
+  }
+  const quoteCreateResponse = {
+    id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+    createdAt: '2026-09-16T12:00:00.000Z',
+    path: '/api/v1/quotes/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+    loadQuery: '?load=aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+    links: {
+      calculator:
+        'https://pixellayer7-jpg.github.io/project-estimator/?load=aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+      contact:
+        'https://pixellayer7-jpg.github.io/1/?quote=aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee#contact',
+    },
+  }
+  const statsExample = {
+    totalQuotes: 3,
+    totalLeads: 2,
+    quotesByStatus: { draft: 1, sent: 1, accepted: 1, declined: 0 },
+    leadsByStatus: { new: 1, contacted: 1, qualified: 0, closed: 0 },
+    version,
+  }
+
+  return {
+    openapi: '3.0.3',
+    info: {
+      title: 'PixelLayer estimator-api',
+      version,
+      description:
+        'File-backed quote + lead CRM for PixelLayer. Public GET by quote UUID for share links; Bearer protects list/PATCH when LIST_QUOTES_TOKEN is set.',
+      contact: {
+        name: 'PixelLayer L.L.C',
+        email: 'pixellayer7@gmail.com',
+        url: 'https://pixellayer7-jpg.github.io/1/',
+      },
+    },
+    servers: [
+      { url: 'http://localhost:3000', description: 'Local dev' },
+      {
+        url: 'https://your-estimator-api.example.com',
+        description: 'Deployed API (Render / Railway / Fly)',
+      },
+    ],
+    tags: [
+      { name: 'System' },
+      { name: 'Quotes' },
+      { name: 'Leads' },
+    ],
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'opaque',
+          description:
+            'Same value as LIST_QUOTES_TOKEN. Required for list/PATCH (and GET lead) when the env var is set.',
+        },
+      },
+      schemas: {
+        QuoteCreate: postQuoteBodySchema,
+        QuoteStatusPatch: patchQuoteBodySchema,
+        LeadCreate: postLeadBodySchema,
+        LeadStatusPatch: patchLeadBodySchema,
+        Error: {
+          type: 'object',
+          properties: { error: { type: 'string' } },
+          required: ['error'],
+        },
+        Stats: {
+          type: 'object',
+          properties: {
+            totalQuotes: { type: 'number' },
+            totalLeads: { type: 'number' },
+            quotesByStatus: { type: 'object', additionalProperties: { type: 'number' } },
+            leadsByStatus: { type: 'object', additionalProperties: { type: 'number' } },
+            version: { type: 'string' },
+          },
+        },
+      },
+      examples: {
+        QuoteCreateExample: { summary: 'Landing + i18n', value: quoteExample },
+        LeadCreateExample: { summary: 'Landing contact', value: leadExample },
+        QuoteCreated: { summary: '201 response', value: quoteCreateResponse },
+        StatsExample: { summary: 'Counts + breakdown', value: statsExample },
+      },
+    },
+    paths: {
+      '/': {
+        get: {
+          tags: ['System'],
+          summary: 'Service catalog',
+          responses: {
+            200: {
+              description: 'Name, version, endpoint map',
+            },
+          },
+        },
+      },
+      '/health': {
+        get: {
+          tags: ['System'],
+          summary: 'Health + storage check',
+          responses: {
+            200: { description: 'ok + storage ready' },
+            503: { description: 'Storage unavailable' },
+          },
+        },
+      },
+      '/api/v1/openapi.json': {
+        get: {
+          tags: ['System'],
+          summary: 'This OpenAPI document',
+          responses: { 200: { description: 'OpenAPI 3.0.3 JSON' } },
+        },
+      },
+      '/api/v1/stats': {
+        get: {
+          tags: ['System'],
+          summary: 'Quote and lead counts with status breakdown',
+          responses: {
+            200: {
+              description: 'Aggregates',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Stats' },
+                  examples: {
+                    sample: { $ref: '#/components/examples/StatsExample' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      '/api/v1/quotes': {
+        get: {
+          tags: ['Quotes'],
+          summary: 'List recent quotes (optional Bearer)',
+          security: bearer,
+          parameters: [
+            {
+              name: 'limit',
+              in: 'query',
+              schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+            },
+          ],
+          responses: {
+            200: { description: '{ count, items } — items omit summary' },
+            401: {
+              description: 'Unauthorized when LIST_QUOTES_TOKEN is set',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' },
+                },
+              },
+            },
+          },
+        },
+        post: {
+          tags: ['Quotes'],
+          summary: 'Create quote snapshot',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/QuoteCreate' },
+                examples: {
+                  landing: { $ref: '#/components/examples/QuoteCreateExample' },
+                },
+              },
+            },
+          },
+          responses: {
+            201: {
+              description: 'Created — includes loadQuery and share links',
+              content: {
+                'application/json': {
+                  examples: {
+                    created: { $ref: '#/components/examples/QuoteCreated' },
+                  },
+                },
+              },
+            },
+            400: {
+              description: 'Invalid body / min>max / bad quoteRef',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' },
+                },
+              },
+            },
+            413: { description: 'Body larger than 256 KiB' },
+          },
+        },
+      },
+      '/api/v1/quotes/{id}': {
+        get: {
+          tags: ['Quotes'],
+          summary: 'Get quote by UUID (public share link)',
+          parameters: [uuidParam],
+          responses: {
+            200: { description: 'Quote record' },
+            400: {
+              description: 'Invalid id',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' },
+                },
+              },
+            },
+            404: {
+              description: 'Not found',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' },
+                },
+              },
+            },
+          },
+        },
+        patch: {
+          tags: ['Quotes'],
+          summary: 'Update quote status',
+          security: bearer,
+          parameters: [uuidParam],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/QuoteStatusPatch' },
+                examples: {
+                  sent: { value: { status: 'sent' } },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: 'Updated quote' },
+            400: { description: 'Invalid id or body' },
+            401: { description: 'Unauthorized when token set' },
+            404: { description: 'Not found' },
+          },
+        },
+      },
+      '/api/v1/leads': {
+        get: {
+          tags: ['Leads'],
+          summary: 'List recent leads (optional Bearer)',
+          security: bearer,
+          parameters: [
+            {
+              name: 'limit',
+              in: 'query',
+              schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+            },
+          ],
+          responses: {
+            200: { description: '{ count, items }' },
+            401: { description: 'Unauthorized when token set' },
+          },
+        },
+        post: {
+          tags: ['Leads'],
+          summary: 'Create contact lead',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/LeadCreate' },
+                examples: {
+                  landing: { $ref: '#/components/examples/LeadCreateExample' },
+                },
+              },
+            },
+          },
+          responses: {
+            201: { description: 'Created — { id, createdAt, path }' },
+            400: { description: 'Invalid body / quoteRef' },
+          },
+        },
+      },
+      '/api/v1/leads/{id}': {
+        get: {
+          tags: ['Leads'],
+          summary: 'Get lead by UUID',
+          security: bearer,
+          parameters: [uuidParam],
+          responses: {
+            200: { description: 'Lead record' },
+            400: { description: 'Invalid id' },
+            401: { description: 'Unauthorized when token set' },
+            404: { description: 'Not found' },
+          },
+        },
+        patch: {
+          tags: ['Leads'],
+          summary: 'Update lead status',
+          security: bearer,
+          parameters: [uuidParam],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/LeadStatusPatch' },
+                examples: {
+                  contacted: { value: { status: 'contacted' } },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: 'Updated lead' },
+            400: { description: 'Invalid id or body' },
+            401: { description: 'Unauthorized when token set' },
+            404: { description: 'Not found' },
+          },
+        },
+      },
+    },
+  }
+}
+
 export default async function buildApp() {
   const app = Fastify({ logger: false, bodyLimit: 262_144 })
 
@@ -174,42 +518,7 @@ export default async function buildApp() {
     },
   }))
 
-  app.get('/api/v1/openapi.json', async () => ({
-    openapi: '3.0.3',
-    info: {
-      title: 'PixelLayer estimator-api',
-      version: pkg.version,
-    },
-    paths: {
-      '/health': { get: { summary: 'Health + storage check' } },
-      '/api/v1/quotes': {
-        get: { summary: 'List recent quotes (optional Bearer)' },
-        post: { summary: 'Create quote snapshot', requestBody: { content: { 'application/json': { schema: postQuoteBodySchema } } } },
-      },
-      '/api/v1/quotes/{id}': {
-        get: { summary: 'Get quote by UUID' },
-        patch: {
-          summary: 'Update quote status (Bearer required when LIST_QUOTES_TOKEN set)',
-          requestBody: { content: { 'application/json': { schema: patchQuoteBodySchema } } },
-        },
-      },
-      '/api/v1/leads': {
-        get: { summary: 'List recent leads (optional Bearer)' },
-        post: {
-          summary: 'Create contact lead',
-          requestBody: { content: { 'application/json': { schema: postLeadBodySchema } } },
-        },
-      },
-      '/api/v1/leads/{id}': {
-        get: { summary: 'Get lead by UUID (Bearer when LIST_QUOTES_TOKEN set)' },
-        patch: {
-          summary: 'Update lead status',
-          requestBody: { content: { 'application/json': { schema: patchLeadBodySchema } } },
-        },
-      },
-      '/api/v1/stats': { get: { summary: 'Quote and lead counts with status breakdown' } },
-    },
-  }))
+  app.get('/api/v1/openapi.json', async () => buildOpenApiDocument(pkg.version))
 
   app.get('/api/v1/stats', async () => {
     const [totalQuotes, totalLeads, quotesByStatus, leadsByStatus] =

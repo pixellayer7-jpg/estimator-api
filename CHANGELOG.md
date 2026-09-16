@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.2
+
+- OpenAPI: richer `/api/v1/openapi.json` with request examples, response samples, Bearer security scheme, tags, and servers
+- Interview-friendly schemas for QuoteCreate / LeadCreate / status PATCH
+
 ## 1.1.1
 
 - Docs: README endpoint table now covers leads, PATCH status, stats, OpenAPI, and share `links`

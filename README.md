@@ -7,13 +7,13 @@ Minimal **Node.js + Fastify** service for **PixelLayer** to **save** calculator 
 
 **Live frontends:** [Landing](https://pixellayer7-jpg.github.io/1/) · [Quote calculator](https://pixellayer7-jpg.github.io/project-estimator/) · [CRM admin](https://pixellayer7-jpg.github.io/project-estimator/?admin=1) (wire with `VITE_QUOTE_API_URL` / `VITE_LEAD_API_URL` + CORS when deployed).
 
-## What it does (v1.1.1)
+## What it does (v1.1.2)
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `GET` | `/` | — | Service name, version, and endpoint map (JSON) |
 | `GET` | `/health` | — | Liveness + storage writable check; includes `version` |
-| `GET` | `/api/v1/openapi.json` | — | Lightweight OpenAPI 3.0 path map (for interview demos) |
+| `GET` | `/api/v1/openapi.json` | — | OpenAPI 3.0.3 with schemas, request/response examples, Bearer security |
 | `GET` | `/api/v1/stats` | — | `{ totalQuotes, totalLeads, quotesByStatus, leadsByStatus, version }` |
 | `GET` | `/api/v1/quotes?limit=20` | Bearer if token set | List recent quotes (newest first); items omit `summary`. `limit` 1–100, default 20 |
 | `POST` | `/api/v1/quotes` | — | Save quote snapshot (JSON Schema). Returns `{ id, createdAt, path, loadQuery, links }` with `links.calculator` / `links.contact` |
