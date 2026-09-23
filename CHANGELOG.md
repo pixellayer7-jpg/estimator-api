@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.3
+
+- Docs: committed static OpenAPI at [`docs/openapi.json`](./docs/openapi.json) (open on GitHub without starting the API)
+- Scripts: `npm run docs:openapi` regenerates from the same `buildOpenApiDocument` as `GET /api/v1/openapi.json`
+
 ## 1.1.2
 
 - OpenAPI: richer `/api/v1/openapi.json` with request examples, response samples, Bearer security scheme, tags, and servers

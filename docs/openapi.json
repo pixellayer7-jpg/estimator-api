@@ -1,0 +1,754 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "PixelLayer estimator-api",
+    "version": "1.1.3",
+    "description": "File-backed quote + lead CRM for PixelLayer. Public GET by quote UUID for share links; Bearer protects list/PATCH when LIST_QUOTES_TOKEN is set.",
+    "contact": {
+      "name": "PixelLayer L.L.C",
+      "email": "pixellayer7@gmail.com",
+      "url": "https://pixellayer7-jpg.github.io/1/"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local dev"
+    },
+    {
+      "url": "https://your-estimator-api.example.com",
+      "description": "Deployed API (Render / Railway / Fly)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "System"
+    },
+    {
+      "name": "Quotes"
+    },
+    {
+      "name": "Leads"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "opaque",
+        "description": "Same value as LIST_QUOTES_TOKEN. Required for list/PATCH (and GET lead) when the env var is set."
+      }
+    },
+    "schemas": {
+      "QuoteCreate": {
+        "type": "object",
+        "required": [
+          "projectType",
+          "addOnIds",
+          "min",
+          "max"
+        ],
+        "properties": {
+          "projectType": {
+            "type": "string",
+            "enum": [
+              "landing",
+              "website",
+              "dashboard"
+            ]
+          },
+          "addOnIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "design",
+                "i18n",
+                "rush"
+              ]
+            }
+          },
+          "extraSections": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "lang": {
+            "enum": [
+              "en",
+              "zh"
+            ]
+          },
+          "quoteRef": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "QuoteStatusPatch": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "sent",
+              "accepted",
+              "declined"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "LeadCreate": {
+        "type": "object",
+        "required": [
+          "name",
+          "email",
+          "message"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "email": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 320
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "projectType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timeline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quoteRef": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "enum": [
+              "landing",
+              "calculator"
+            ]
+          },
+          "lang": {
+            "enum": [
+              "en",
+              "zh"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "LeadStatusPatch": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "new",
+              "contacted",
+              "qualified",
+              "closed"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "Stats": {
+        "type": "object",
+        "properties": {
+          "totalQuotes": {
+            "type": "number"
+          },
+          "totalLeads": {
+            "type": "number"
+          },
+          "quotesByStatus": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "leadsByStatus": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "examples": {
+      "QuoteCreateExample": {
+        "summary": "Landing + i18n",
+        "value": {
+          "projectType": "landing",
+          "addOnIds": [
+            "i18n"
+          ],
+          "extraSections": "2",
+          "min": 800,
+          "max": 1400,
+          "lang": "en",
+          "summary": "Interview demo quote"
+        }
+      },
+      "LeadCreateExample": {
+        "summary": "Landing contact",
+        "value": {
+          "name": "Ada Interview",
+          "email": "ada@example.com",
+          "message": "Need a bilingual landing page",
+          "source": "landing",
+          "lang": "en"
+        }
+      },
+      "QuoteCreated": {
+        "summary": "201 response",
+        "value": {
+          "id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+          "createdAt": "2026-09-16T12:00:00.000Z",
+          "path": "/api/v1/quotes/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+          "loadQuery": "?load=aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+          "links": {
+            "calculator": "https://pixellayer7-jpg.github.io/project-estimator/?load=aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+            "contact": "https://pixellayer7-jpg.github.io/1/?quote=aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee#contact"
+          }
+        }
+      },
+      "StatsExample": {
+        "summary": "Counts + breakdown",
+        "value": {
+          "totalQuotes": 3,
+          "totalLeads": 2,
+          "quotesByStatus": {
+            "draft": 1,
+            "sent": 1,
+            "accepted": 1,
+            "declined": 0
+          },
+          "leadsByStatus": {
+            "new": 1,
+            "contacted": 1,
+            "qualified": 0,
+            "closed": 0
+          },
+          "version": "1.1.3"
+        }
+      }
+    }
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Service catalog",
+        "responses": {
+          "200": {
+            "description": "Name, version, endpoint map"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Health + storage check",
+        "responses": {
+          "200": {
+            "description": "ok + storage ready"
+          },
+          "503": {
+            "description": "Storage unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/openapi.json": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "This OpenAPI document",
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.0.3 JSON"
+          }
+        }
+      }
+    },
+    "/api/v1/stats": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Quote and lead counts with status breakdown",
+        "responses": {
+          "200": {
+            "description": "Aggregates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stats"
+                },
+                "examples": {
+                  "sample": {
+                    "$ref": "#/components/examples/StatsExample"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/quotes": {
+      "get": {
+        "tags": [
+          "Quotes"
+        ],
+        "summary": "List recent quotes (optional Bearer)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ count, items } — items omit summary"
+          },
+          "401": {
+            "description": "Unauthorized when LIST_QUOTES_TOKEN is set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Quotes"
+        ],
+        "summary": "Create quote snapshot",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteCreate"
+              },
+              "examples": {
+                "landing": {
+                  "$ref": "#/components/examples/QuoteCreateExample"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created — includes loadQuery and share links",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "created": {
+                    "$ref": "#/components/examples/QuoteCreated"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body / min>max / bad quoteRef",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body larger than 256 KiB"
+          }
+        }
+      }
+    },
+    "/api/v1/quotes/{id}": {
+      "get": {
+        "tags": [
+          "Quotes"
+        ],
+        "summary": "Get quote by UUID (public share link)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "RFC 9562 UUID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Quote record"
+          },
+          "400": {
+            "description": "Invalid id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Quotes"
+        ],
+        "summary": "Update quote status",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "RFC 9562 UUID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteStatusPatch"
+              },
+              "examples": {
+                "sent": {
+                  "value": {
+                    "status": "sent"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated quote"
+          },
+          "400": {
+            "description": "Invalid id or body"
+          },
+          "401": {
+            "description": "Unauthorized when token set"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/api/v1/leads": {
+      "get": {
+        "tags": [
+          "Leads"
+        ],
+        "summary": "List recent leads (optional Bearer)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ count, items }"
+          },
+          "401": {
+            "description": "Unauthorized when token set"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Leads"
+        ],
+        "summary": "Create contact lead",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeadCreate"
+              },
+              "examples": {
+                "landing": {
+                  "$ref": "#/components/examples/LeadCreateExample"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created — { id, createdAt, path }"
+          },
+          "400": {
+            "description": "Invalid body / quoteRef"
+          }
+        }
+      }
+    },
+    "/api/v1/leads/{id}": {
+      "get": {
+        "tags": [
+          "Leads"
+        ],
+        "summary": "Get lead by UUID",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "RFC 9562 UUID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lead record"
+          },
+          "400": {
+            "description": "Invalid id"
+          },
+          "401": {
+            "description": "Unauthorized when token set"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Leads"
+        ],
+        "summary": "Update lead status",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "RFC 9562 UUID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeadStatusPatch"
+              },
+              "examples": {
+                "contacted": {
+                  "value": {
+                    "status": "contacted"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated lead"
+          },
+          "400": {
+            "description": "Invalid id or body"
+          },
+          "401": {
+            "description": "Unauthorized when token set"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    }
+  }
+}

@@ -117,7 +117,7 @@ function authorizeQuoteList(request, reply) {
   return false
 }
 
-function buildOpenApiDocument(version) {
+export function buildOpenApiDocument(version) {
   const bearer = [{ bearerAuth: [] }]
   const uuidParam = {
     name: 'id',
