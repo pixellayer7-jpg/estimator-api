@@ -1,13 +1,13 @@
 # estimator-api
 
 > **Portfolio highlight** · [My GitHub](https://github.com/pixellayer7-jpg) · Pairs with [project-estimator](https://github.com/pixellayer7-jpg/project-estimator)  
-> Node 20 · Fastify 5 · JSON Schema · CORS · Bearer-protected list · Node test runner · CI
+> Node 22 · Fastify 5 · JSON Schema · CORS · Bearer-protected list · Node test runner · CI
 
 Minimal **Node.js + Fastify** service for **PixelLayer** to **save** calculator payloads, **leads**, and **CRM status** — shareable `?load=<uuid>` links plus an optional online CRM.
 
 **Live frontends:** [Landing](https://pixellayer7-jpg.github.io/1/) · [Quote calculator](https://pixellayer7-jpg.github.io/project-estimator/) · [CRM admin](https://pixellayer7-jpg.github.io/project-estimator/?admin=1) (wire with `VITE_QUOTE_API_URL` / `VITE_LEAD_API_URL` + CORS when deployed).
 
-## What it does (v1.1.3)
+## What it does (v1.2.0)
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
@@ -40,7 +40,7 @@ Responses include **`X-Content-Type-Options: nosniff`** and **`X-API-Version`**.
 
 ## Run locally
 
-Use **Node 20** (see **`engines`** in `package.json`; optional **`.nvmrc`** for `nvm use`).
+Use **Node 22** (see **`engines`** in `package.json`; optional **`.nvmrc`** for `nvm use`).
 
 ```bash
 cd estimator-api
@@ -129,7 +129,7 @@ npm run demo:curl
 
 Manual curls + talking points: **[docs/CURL-WALKTHROUGH.md](./docs/CURL-WALKTHROUGH.md)**. Static OpenAPI (no server): **[docs/openapi.json](./docs/openapi.json)** (`npm run docs:openapi`). Local full stack: **[docs/LOCAL-DEV.md](./docs/LOCAL-DEV.md)**.
 
-GitHub Actions (**`.github/workflows/ci.yml`**) runs on push/PR with **`permissions: contents: read`**, **concurrency**, and **Node 20**.
+GitHub Actions (**`.github/workflows/ci.yml`**) runs on push/PR with **`permissions: contents: read`**, **concurrency**, and **Node 22**.
 
 ## Related repos
 

@@ -47,7 +47,7 @@ describe('estimator-api', () => {
     const res = await app.inject({ method: 'GET', url: '/' })
     assert.strictEqual(res.statusCode, 200)
     assert.strictEqual(res.headers['x-content-type-options'], 'nosniff')
-    assert.strictEqual(res.headers['x-api-version'], '1.1.3')
+    assert.strictEqual(res.headers['x-api-version'], '1.2.0')
     const body = JSON.parse(res.body)
     assert.strictEqual(body.service, 'estimator-api')
     assert.ok(body.links?.landing)
@@ -62,7 +62,22 @@ describe('estimator-api', () => {
     const body = JSON.parse(res.body)
     assert.strictEqual(body.ok, true)
     assert.strictEqual(body.storage, 'ready')
-    assert.strictEqual(body.version, '1.1.3')
+    assert.strictEqual(body.version, '1.2.0')
+  })
+
+  it('CORS preflight allows PATCH for CRM status updates', async () => {
+    const res = await app.inject({
+      method: 'OPTIONS',
+      url: '/api/v1/leads/22222222-2222-4222-8222-222222222222',
+      headers: {
+        origin: 'https://pixellayer7-jpg.github.io',
+        'access-control-request-method': 'PATCH',
+        'access-control-request-headers': 'authorization,content-type',
+      },
+    })
+    assert.strictEqual(res.statusCode, 204)
+    const methods = res.headers['access-control-allow-methods'].split(/,\s*/)
+    for (const m of ['GET', 'POST', 'PATCH']) assert.ok(methods.includes(m), m)
   })
 
   it('POST rejects oversized JSON body', async () => {
@@ -410,7 +425,7 @@ describe('estimator-api', () => {
     assert.ok(typeof body.totalLeads === 'number')
     assert.ok(body.quotesByStatus)
     assert.ok(body.leadsByStatus)
-    assert.strictEqual(body.version, '1.1.3')
+    assert.strictEqual(body.version, '1.2.0')
   })
 
   it('POST /api/v1/leads then GET list', async () => {

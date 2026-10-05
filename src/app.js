@@ -471,6 +471,8 @@ export default async function buildApp() {
 
   await app.register(cors, {
     origin: origins.length ? origins : true,
+    // @fastify/cors 11 defaults to GET/HEAD/POST; the CRM admin needs PATCH.
+    methods: ['GET', 'HEAD', 'POST', 'PATCH'],
   })
 
   await app.register(rateLimit, {

@@ -6,7 +6,7 @@ Run the marketing site, calculator, and estimator-api together on your machine â
 
 ## Prerequisites
 
-- Node 20+
+- Node 22+
 - Docker (optional, for API)
 
 ## 1. Start the API

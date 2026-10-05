@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0
+
+- Deps: `@fastify/cors` 11 and `@fastify/rate-limit` 11 (`npm audit` clean)
+- CORS: explicit `methods` (GET/HEAD/POST/PATCH) because cors 11 defaults to GET/HEAD/POST, which would block CRM status PATCH preflights; covered by a new test
+- Runtime: Node 22 (`engines`, `.nvmrc`, CI, Docker `node:22-alpine`)
+
 ## 1.1.3
 
 - Docs: committed static OpenAPI at [`docs/openapi.json`](./docs/openapi.json) (open on GitHub without starting the API)
