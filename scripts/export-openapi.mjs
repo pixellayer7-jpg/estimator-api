@@ -13,4 +13,6 @@ const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 const out = join(root, 'docs', 'openapi.json')
 const doc = buildOpenApiDocument(pkg.version)
 writeFileSync(out, `${JSON.stringify(doc, null, 2)}\n`, 'utf8')
-console.log(`Wrote ${out} (OpenAPI ${doc.openapi}, info.version ${doc.info.version})`)
+console.log(
+  `Wrote ${out} (OpenAPI ${doc.openapi}, info.version ${doc.info.version})`
+)

@@ -5,8 +5,23 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import rateLimit from '@fastify/rate-limit'
 import { randomUUID, timingSafeEqual } from 'node:crypto'
-import { appendQuote, findQuoteById, listQuotesRecent, checkStorageReady, countQuotes, updateQuoteById, quoteStatusBreakdown } from './store.js'
-import { appendLead, listLeadsRecent, countLeads, findLeadById, updateLeadById, leadStatusBreakdown } from './leadsStore.js'
+import {
+  appendQuote,
+  findQuoteById,
+  listQuotesRecent,
+  checkStorageReady,
+  countQuotes,
+  updateQuoteById,
+  quoteStatusBreakdown,
+} from './store.js'
+import {
+  appendLead,
+  listLeadsRecent,
+  countLeads,
+  findLeadById,
+  updateLeadById,
+  leadStatusBreakdown,
+} from './leadsStore.js'
 
 const PROJECT_TYPES = ['landing', 'website', 'dashboard']
 const ADDON_IDS = ['design', 'i18n', 'rush']
@@ -182,11 +197,7 @@ export function buildOpenApiDocument(version) {
         description: 'Deployed API (Render / Railway / Fly)',
       },
     ],
-    tags: [
-      { name: 'System' },
-      { name: 'Quotes' },
-      { name: 'Leads' },
-    ],
+    tags: [{ name: 'System' }, { name: 'Quotes' }, { name: 'Leads' }],
     components: {
       securitySchemes: {
         bearerAuth: {
@@ -212,8 +223,14 @@ export function buildOpenApiDocument(version) {
           properties: {
             totalQuotes: { type: 'number' },
             totalLeads: { type: 'number' },
-            quotesByStatus: { type: 'object', additionalProperties: { type: 'number' } },
-            leadsByStatus: { type: 'object', additionalProperties: { type: 'number' } },
+            quotesByStatus: {
+              type: 'object',
+              additionalProperties: { type: 'number' },
+            },
+            leadsByStatus: {
+              type: 'object',
+              additionalProperties: { type: 'number' },
+            },
             version: { type: 'string' },
           },
         },
@@ -282,7 +299,12 @@ export function buildOpenApiDocument(version) {
             {
               name: 'limit',
               in: 'query',
-              schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+              schema: {
+                type: 'integer',
+                minimum: 1,
+                maximum: 100,
+                default: 20,
+              },
             },
           ],
           responses: {
@@ -392,7 +414,12 @@ export function buildOpenApiDocument(version) {
             {
               name: 'limit',
               in: 'query',
-              schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+              schema: {
+                type: 'integer',
+                minimum: 1,
+                maximum: 100,
+                default: 20,
+              },
             },
           ],
           responses: {
@@ -542,7 +569,12 @@ export default async function buildApp() {
   app.get('/health', async (_request, reply) => {
     try {
       await checkStorageReady()
-      return { ok: true, service: 'estimator-api', version: pkg.version, storage: 'ready' }
+      return {
+        ok: true,
+        service: 'estimator-api',
+        version: pkg.version,
+        storage: 'ready',
+      }
     } catch (e) {
       return reply.code(503).send({
         ok: false,
@@ -687,8 +719,17 @@ export default async function buildApp() {
     },
     async (request, reply) => {
       const body = request.body
-      const { name, email, message, subject, projectType, timeline, quoteRef, source, lang } =
-        body
+      const {
+        name,
+        email,
+        message,
+        subject,
+        projectType,
+        timeline,
+        quoteRef,
+        source,
+        lang,
+      } = body
 
       if (
         typeof quoteRef === 'string' &&
@@ -707,7 +748,8 @@ export default async function buildApp() {
         email: String(email).trim(),
         message: String(message).trim(),
         subject: typeof subject === 'string' ? subject.trim() : null,
-        projectType: typeof projectType === 'string' ? projectType.trim() : null,
+        projectType:
+          typeof projectType === 'string' ? projectType.trim() : null,
         timeline: typeof timeline === 'string' ? timeline.trim() : null,
         quoteRef: typeof quoteRef === 'string' ? quoteRef.trim() : null,
         source: typeof source === 'string' ? source : 'landing',
@@ -716,7 +758,9 @@ export default async function buildApp() {
       }
 
       await appendLead(record)
-      return reply.code(201).send({ id, createdAt, path: `/api/v1/leads/${id}` })
+      return reply
+        .code(201)
+        .send({ id, createdAt, path: `/api/v1/leads/${id}` })
     }
   )
 

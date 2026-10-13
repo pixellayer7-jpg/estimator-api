@@ -20,11 +20,11 @@ API listens on **http://localhost:3000** with persistent JSON storage.
 
 Environment (already in `docker-compose.yml`):
 
-| Variable | Local value |
-|----------|-------------|
-| `CORS_ORIGIN` | `http://localhost:5173,http://localhost:5174,https://pixellayer7-jpg.github.io` |
-| `LIST_QUOTES_TOKEN` | Set to `dev-token` in compose for CRM admin |
-| `DATA_DIR` | `/var/data` (Docker volume) |
+| Variable            | Local value                                                                     |
+| ------------------- | ------------------------------------------------------------------------------- |
+| `CORS_ORIGIN`       | `http://localhost:5173,http://localhost:5174,https://pixellayer7-jpg.github.io` |
+| `LIST_QUOTES_TOKEN` | Set to `dev-token` in compose for CRM admin                                     |
+| `DATA_DIR`          | `/var/data` (Docker volume)                                                     |
 
 Without Docker:
 

@@ -18,11 +18,16 @@
     "dev": "node --watch src/server.js",
     "test": "node --test",
     "demo:curl": "node docs/demo-curl.mjs",
-    "docs:openapi": "node scripts/export-openapi.mjs"
+    "docs:openapi": "node scripts/export-openapi.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",
     "@fastify/rate-limit": "^11.2.0",
     "fastify": "^5.1.0"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.10"
   }
 }

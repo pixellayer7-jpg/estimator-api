@@ -9,20 +9,20 @@ Minimal **Node.js + Fastify** service for **PixelLayer** to **save** calculator 
 
 ## What it does (v1.2.0)
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| `GET` | `/` | — | Service name, version, and endpoint map (JSON) |
-| `GET` | `/health` | — | Liveness + storage writable check; includes `version` |
-| `GET` | `/api/v1/openapi.json` | — | OpenAPI 3.0.3 with schemas, request/response examples, Bearer security (static copy: [`docs/openapi.json`](./docs/openapi.json)) |
-| `GET` | `/api/v1/stats` | — | `{ totalQuotes, totalLeads, quotesByStatus, leadsByStatus, version }` |
-| `GET` | `/api/v1/quotes?limit=20` | Bearer if token set | List recent quotes (newest first); items omit `summary`. `limit` 1–100, default 20 |
-| `POST` | `/api/v1/quotes` | — | Save quote snapshot (JSON Schema). Returns `{ id, createdAt, path, loadQuery, links }` with `links.calculator` / `links.contact` |
-| `GET` | `/api/v1/quotes/:id` | — | Load one saved quote (UUID). Public share link |
-| `PATCH` | `/api/v1/quotes/:id` | Bearer if token set | Update quote `status`: `draft` \| `sent` \| `accepted` \| `declined` |
-| `GET` | `/api/v1/leads?limit=20` | Bearer if token set | List recent contact leads |
-| `POST` | `/api/v1/leads` | — | Store contact lead (`name`, `email`, `message` required; optional `subject`, `projectType`, `timeline`, `quoteRef`, `source`, `lang`). Default `status: new` |
-| `GET` | `/api/v1/leads/:id` | Bearer if token set | Load one lead by UUID |
-| `PATCH` | `/api/v1/leads/:id` | Bearer if token set | Update lead `status`: `new` \| `contacted` \| `qualified` \| `closed` |
+| Method  | Path                      | Auth                | Description                                                                                                                                                  |
+| ------- | ------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET`   | `/`                       | —                   | Service name, version, and endpoint map (JSON)                                                                                                               |
+| `GET`   | `/health`                 | —                   | Liveness + storage writable check; includes `version`                                                                                                        |
+| `GET`   | `/api/v1/openapi.json`    | —                   | OpenAPI 3.0.3 with schemas, request/response examples, Bearer security (static copy: [`docs/openapi.json`](./docs/openapi.json))                             |
+| `GET`   | `/api/v1/stats`           | —                   | `{ totalQuotes, totalLeads, quotesByStatus, leadsByStatus, version }`                                                                                        |
+| `GET`   | `/api/v1/quotes?limit=20` | Bearer if token set | List recent quotes (newest first); items omit `summary`. `limit` 1–100, default 20                                                                           |
+| `POST`  | `/api/v1/quotes`          | —                   | Save quote snapshot (JSON Schema). Returns `{ id, createdAt, path, loadQuery, links }` with `links.calculator` / `links.contact`                             |
+| `GET`   | `/api/v1/quotes/:id`      | —                   | Load one saved quote (UUID). Public share link                                                                                                               |
+| `PATCH` | `/api/v1/quotes/:id`      | Bearer if token set | Update quote `status`: `draft` \| `sent` \| `accepted` \| `declined`                                                                                         |
+| `GET`   | `/api/v1/leads?limit=20`  | Bearer if token set | List recent contact leads                                                                                                                                    |
+| `POST`  | `/api/v1/leads`           | —                   | Store contact lead (`name`, `email`, `message` required; optional `subject`, `projectType`, `timeline`, `quoteRef`, `source`, `lang`). Default `status: new` |
+| `GET`   | `/api/v1/leads/:id`       | Bearer if token set | Load one lead by UUID                                                                                                                                        |
+| `PATCH` | `/api/v1/leads/:id`       | Bearer if token set | Update lead `status`: `new` \| `contacted` \| `qualified` \| `closed`                                                                                        |
 
 **Auth note:** When **`LIST_QUOTES_TOKEN`** is set, protected routes require `Authorization: Bearer <token>`. Single-quote `GET /api/v1/quotes/:id` stays public for share links. Leave the token empty for local/dev.
 
@@ -76,15 +76,15 @@ curl -s -X PATCH http://localhost:3000/api/v1/leads/<uuid> \
 
 ## Environment
 
-| Variable | Meaning |
-|----------|---------|
-| `PORT` | Listen port (default `3000`) |
-| `HOST` | Bind address (default `0.0.0.0`) |
-| `CORS_ORIGIN` | Comma-separated allowed origins; empty = allow all (**dev only**) |
-| `DATA_DIR` | Override directory for JSON stores |
-| `LIST_QUOTES_TOKEN` | Optional bearer for list / PATCH / get-lead routes |
-| `FRONTEND_CALCULATOR_URL` | Base URL for `links.calculator` in POST quote responses |
-| `FRONTEND_LANDING_URL` | Base URL for `links.contact` (`?quote=<id>#contact`) |
+| Variable                  | Meaning                                                           |
+| ------------------------- | ----------------------------------------------------------------- |
+| `PORT`                    | Listen port (default `3000`)                                      |
+| `HOST`                    | Bind address (default `0.0.0.0`)                                  |
+| `CORS_ORIGIN`             | Comma-separated allowed origins; empty = allow all (**dev only**) |
+| `DATA_DIR`                | Override directory for JSON stores                                |
+| `LIST_QUOTES_TOKEN`       | Optional bearer for list / PATCH / get-lead routes                |
+| `FRONTEND_CALCULATOR_URL` | Base URL for `links.calculator` in POST quote responses           |
+| `FRONTEND_LANDING_URL`    | Base URL for `links.contact` (`?quote=<id>#contact`)              |
 
 ## Deploy (Docker / Render / Railway)
 

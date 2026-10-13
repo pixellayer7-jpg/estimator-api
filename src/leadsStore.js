@@ -54,16 +54,19 @@ export async function appendLead(record) {
 export async function listLeadsRecent(limit = 20) {
   const leads = await readLeads()
   const n = Math.min(100, Math.max(1, Math.floor(limit) || 20))
-  return leads.slice(-n).reverse().map((l) => ({
-    id: l.id,
-    createdAt: l.createdAt,
-    name: l.name,
-    email: l.email,
-    source: l.source,
-    status: l.status || 'new',
-    quoteRef: l.quoteRef ?? null,
-    projectType: l.projectType ?? null,
-  }))
+  return leads
+    .slice(-n)
+    .reverse()
+    .map((l) => ({
+      id: l.id,
+      createdAt: l.createdAt,
+      name: l.name,
+      email: l.email,
+      source: l.source,
+      status: l.status || 'new',
+      quoteRef: l.quoteRef ?? null,
+      projectType: l.projectType ?? null,
+    }))
 }
 
 export async function countLeads() {
