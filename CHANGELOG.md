@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.1
+
+- Tooling: Prettier (same config as the frontends) and ESLint 10 flat config; `npm run check` = format + lint + test (code was already lint-clean)
+- Coverage: `npm run test:coverage` with gates at lines 95% / branches 65% / functions 96%; CI posts the table to the job summary
+- `engines` is now `>=22.13` (coverage gate flags need Node 22.8+)
+
 ## 1.2.0
 
 - Deps: `@fastify/cors` 11 and `@fastify/rate-limit` 11 (`npm audit` clean)

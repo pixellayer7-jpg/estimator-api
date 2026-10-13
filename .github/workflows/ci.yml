@@ -23,4 +23,16 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - run: npm run check
+      - run: npm run format:check
+      - run: npm run lint
+      # Explicit bash adds pipefail, so a failing test still fails the step through tee.
+      - shell: bash
+        run: npm run test:coverage | tee coverage.txt
+      - if: ${{ !cancelled() && hashFiles('coverage.txt') != '' }}
+        run: |
+          {
+            echo '### Unit test coverage'
+            echo '```'
+            grep -E '^# .*\|' coverage.txt | sed 's/^# //'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
