@@ -7,7 +7,7 @@ Minimal **Node.js + Fastify** service for **PixelLayer** to **save** calculator 
 
 **Live frontends:** [Landing](https://pixellayer7-jpg.github.io/1/) · [Quote calculator](https://pixellayer7-jpg.github.io/project-estimator/) · [CRM admin](https://pixellayer7-jpg.github.io/project-estimator/?admin=1) (wire with `VITE_QUOTE_API_URL` / `VITE_LEAD_API_URL` + CORS when deployed).
 
-## What it does (v1.2.1)
+## What it does (v1.2.2)
 
 | Method  | Path                      | Auth                | Description                                                                                                                                                  |
 | ------- | ------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |

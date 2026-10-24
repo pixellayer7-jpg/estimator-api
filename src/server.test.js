@@ -47,7 +47,7 @@ describe('estimator-api', () => {
     const res = await app.inject({ method: 'GET', url: '/' })
     assert.strictEqual(res.statusCode, 200)
     assert.strictEqual(res.headers['x-content-type-options'], 'nosniff')
-    assert.strictEqual(res.headers['x-api-version'], '1.2.1')
+    assert.strictEqual(res.headers['x-api-version'], '1.2.2')
     const body = JSON.parse(res.body)
     assert.strictEqual(body.service, 'estimator-api')
     assert.ok(body.links?.landing)
@@ -62,7 +62,7 @@ describe('estimator-api', () => {
     const body = JSON.parse(res.body)
     assert.strictEqual(body.ok, true)
     assert.strictEqual(body.storage, 'ready')
-    assert.strictEqual(body.version, '1.2.1')
+    assert.strictEqual(body.version, '1.2.2')
   })
 
   it('CORS preflight allows PATCH for CRM status updates', async () => {
@@ -425,7 +425,7 @@ describe('estimator-api', () => {
     assert.ok(typeof body.totalLeads === 'number')
     assert.ok(body.quotesByStatus)
     assert.ok(body.leadsByStatus)
-    assert.strictEqual(body.version, '1.2.1')
+    assert.strictEqual(body.version, '1.2.2')
   })
 
   it('POST /api/v1/leads then GET list', async () => {

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.2
+
+- Security: Fastify 5.12.7 (was 5.12.5). 5.12.2–5.12.5 could skip header schema checks when a client sent a different letter case of a constrained header name ([GHSA-389g-gv7q-r4x8](https://github.com/advisories/GHSA-389g-gv7q-r4x8))
+- Security: `ip-address` 10.7.4, pulled in by the rate limiter. 10.7.3 and earlier could stall the process on one long IPv6 zone string ([GHSA-rxp7-6hxx-x8q5](https://github.com/advisories/GHSA-rxp7-6hxx-x8q5))
+- `npm audit` for production dependencies is clean again
+
 ## 1.2.1
 
 - Tooling: Prettier (same config as the frontends) and ESLint 10 flat config; `npm run check` = format + lint + test (code was already lint-clean)
