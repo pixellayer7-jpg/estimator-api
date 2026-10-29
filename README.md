@@ -1,13 +1,13 @@
 # estimator-api
 
 > **Portfolio highlight** · [My GitHub](https://github.com/pixellayer7-jpg) · Pairs with [project-estimator](https://github.com/pixellayer7-jpg/project-estimator)  
-> Node 22 · Fastify 5 · JSON Schema · CORS · Bearer-protected list · Node test runner (~96% line coverage) · ESLint + Prettier · CI
+> Node 22 · Fastify 5 · JSON Schema · CORS · Bearer-protected list · Node test runner (~100% line coverage) · ESLint + Prettier · CI
 
 Minimal **Node.js + Fastify** service for **PixelLayer** to **save** calculator payloads, **leads**, and **CRM status** — shareable `?load=<uuid>` links plus an optional online CRM.
 
 **Live frontends:** [Landing](https://pixellayer7-jpg.github.io/1/) · [Quote calculator](https://pixellayer7-jpg.github.io/project-estimator/) · [CRM admin](https://pixellayer7-jpg.github.io/project-estimator/?admin=1) (wire with `VITE_QUOTE_API_URL` / `VITE_LEAD_API_URL` + CORS when deployed).
 
-## What it does (v1.2.2)
+## What it does (v1.2.3)
 
 | Method  | Path                      | Auth                | Description                                                                                                                                                  |
 | ------- | ------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -117,7 +117,7 @@ Use **Railway**, **Render**, **Fly.io**, etc.: HTTPS subdomain. Set `CORS_ORIGIN
 
 ```bash
 npm test              # node --test
-npm run test:coverage # same, with coverage gates (lines 95%, branches 65%, functions 96%)
+npm run test:coverage # same, with coverage gates (lines 100%, branches 86%, functions 98%)
 npm run lint          # ESLint 10 flat config
 npm run format:check  # Prettier
 npm run check         # format:check + lint + test

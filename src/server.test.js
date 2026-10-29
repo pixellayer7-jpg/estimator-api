@@ -47,7 +47,7 @@ describe('estimator-api', () => {
     const res = await app.inject({ method: 'GET', url: '/' })
     assert.strictEqual(res.statusCode, 200)
     assert.strictEqual(res.headers['x-content-type-options'], 'nosniff')
-    assert.strictEqual(res.headers['x-api-version'], '1.2.2')
+    assert.strictEqual(res.headers['x-api-version'], '1.2.3')
     const body = JSON.parse(res.body)
     assert.strictEqual(body.service, 'estimator-api')
     assert.ok(body.links?.landing)
@@ -62,7 +62,7 @@ describe('estimator-api', () => {
     const body = JSON.parse(res.body)
     assert.strictEqual(body.ok, true)
     assert.strictEqual(body.storage, 'ready')
-    assert.strictEqual(body.version, '1.2.2')
+    assert.strictEqual(body.version, '1.2.3')
   })
 
   it('CORS preflight allows PATCH for CRM status updates', async () => {
@@ -425,7 +425,7 @@ describe('estimator-api', () => {
     assert.ok(typeof body.totalLeads === 'number')
     assert.ok(body.quotesByStatus)
     assert.ok(body.leadsByStatus)
-    assert.strictEqual(body.version, '1.2.2')
+    assert.strictEqual(body.version, '1.2.3')
   })
 
   it('POST /api/v1/leads then GET list', async () => {
@@ -497,5 +497,154 @@ describe('estimator-api', () => {
     })
     assert.strictEqual(patch.statusCode, 200)
     assert.strictEqual(JSON.parse(patch.body).status, 'contacted')
+  })
+
+  it('POST rejects non-finite min/max strings', async () => {
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/v1/quotes',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        projectType: 'landing',
+        addOnIds: [],
+        min: 'NaN',
+        max: '2',
+      }),
+    })
+    assert.strictEqual(post.statusCode, 400)
+    assert.deepStrictEqual(JSON.parse(post.body), {
+      error: 'min and max must be finite numbers',
+    })
+  })
+
+  it('GET /health returns 503 when storage is unavailable', async () => {
+    const prev = process.env.DATA_DIR
+    const blocker = join(dir, 'not-a-directory')
+    const { writeFile } = await import('node:fs/promises')
+    await writeFile(blocker, 'blocked')
+    process.env.DATA_DIR = join(blocker, 'nested')
+    try {
+      const res = await app.inject({ method: 'GET', url: '/health' })
+      assert.strictEqual(res.statusCode, 503)
+      const body = JSON.parse(res.body)
+      assert.strictEqual(body.ok, false)
+      assert.strictEqual(body.storage, 'unavailable')
+      assert.ok(typeof body.error === 'string' && body.error.length > 0)
+    } finally {
+      process.env.DATA_DIR = prev
+    }
+  })
+
+  it('GET /api/v1/quotes returns 500 when quote storage is corrupt', async () => {
+    const { writeFile, unlink } = await import('node:fs/promises')
+    const file = join(dir, 'quotes.json')
+    await writeFile(file, '{not-json')
+    try {
+      const res = await app.inject({ url: '/api/v1/quotes' })
+      assert.strictEqual(res.statusCode, 500)
+      assert.deepStrictEqual(JSON.parse(res.body), {
+        error: 'Internal Server Error',
+      })
+    } finally {
+      await unlink(file).catch(() => {})
+    }
+  })
+
+  it('PATCH quote and lead reject invalid ids; GET lead covers missing rows', async () => {
+    const badQuote = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/quotes/not-a-uuid',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({ status: 'sent' }),
+    })
+    assert.strictEqual(badQuote.statusCode, 400)
+    assert.deepStrictEqual(JSON.parse(badQuote.body), { error: 'Invalid id' })
+
+    const missingQuote = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/quotes/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({ status: 'sent' }),
+    })
+    assert.strictEqual(missingQuote.statusCode, 404)
+
+    const badLead = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/leads/not-a-uuid',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({ status: 'closed' }),
+    })
+    assert.strictEqual(badLead.statusCode, 400)
+
+    const getBad = await app.inject({ url: '/api/v1/leads/not-a-uuid' })
+    assert.strictEqual(getBad.statusCode, 400)
+
+    const getMissing = await app.inject({
+      url: '/api/v1/leads/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+    })
+    assert.strictEqual(getMissing.statusCode, 404)
+  })
+
+  it('GET /api/v1/leads parses limit and returns a created lead by id', async () => {
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/v1/leads',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        name: 'Limit Lead',
+        email: 'limit@example.com',
+        message: 'limit parse',
+        quoteRef: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+      }),
+    })
+    assert.strictEqual(post.statusCode, 201)
+    const { id } = JSON.parse(post.body)
+
+    const listed = await app.inject({ url: '/api/v1/leads?limit=1' })
+    assert.strictEqual(listed.statusCode, 200)
+    assert.strictEqual(JSON.parse(listed.body).items.length, 1)
+
+    const ignored = await app.inject({ url: '/api/v1/leads?limit=nope' })
+    assert.strictEqual(ignored.statusCode, 200)
+    assert.ok(JSON.parse(ignored.body).count >= 1)
+
+    const one = await app.inject({ url: `/api/v1/leads/${id}` })
+    assert.strictEqual(one.statusCode, 200)
+    assert.strictEqual(JSON.parse(one.body).email, 'limit@example.com')
+  })
+
+  it('POST /api/v1/leads rejects an invalid quoteRef', async () => {
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/v1/leads',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        name: 'Bad Ref',
+        email: 'badref@example.com',
+        message: 'bad quote ref',
+        quoteRef: 'not-a-uuid',
+      }),
+    })
+    assert.strictEqual(post.statusCode, 400)
+    assert.deepStrictEqual(JSON.parse(post.body), { error: 'Invalid quoteRef' })
+  })
+
+  it('GET lead requires bearer token when LIST_QUOTES_TOKEN is set', async () => {
+    const prev = process.env.LIST_QUOTES_TOKEN
+    process.env.LIST_QUOTES_TOKEN = 'lead-secret'
+    try {
+      const noAuth = await app.inject({
+        url: '/api/v1/leads/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+      })
+      assert.strictEqual(noAuth.statusCode, 401)
+      const ok = await app.inject({
+        url: '/api/v1/leads/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+        headers: { authorization: 'Bearer lead-secret' },
+      })
+      assert.strictEqual(ok.statusCode, 404)
+    } finally {
+      if (prev === undefined) delete process.env.LIST_QUOTES_TOKEN
+      else process.env.LIST_QUOTES_TOKEN = prev
+    }
   })
 })

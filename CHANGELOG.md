@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.3
+
+- Tests: health 503 when storage fails, corrupt quote store → 500, invalid lead/quote ids and quoteRef, non-finite min/max, lead GET by id and limit parsing
+- Store: corrupt JSON, unknown status buckets, missing update ids, and max-capacity trim for quotes and leads
+- Coverage gates raised to lines 100% / branches 86% / functions 98% (was 95 / 65 / 96)
+
 ## 1.2.2
 
 - Security: Fastify 5.12.7 (was 5.12.5). 5.12.2–5.12.5 could skip header schema checks when a client sent a different letter case of a constrained header name ([GHSA-389g-gv7q-r4x8](https://github.com/advisories/GHSA-389g-gv7q-r4x8))

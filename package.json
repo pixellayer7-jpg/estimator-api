@@ -1,7 +1,7 @@
 {
   "name": "estimator-api",
   "private": true,
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "PixelLayer — minimal API to persist and share project quotes (MVP, file-backed).",
   "type": "module",
   "author": "PixelLayer L.L.C",
@@ -17,7 +17,7 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node --test",
-    "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude=\"**/*.test.js\" --test-coverage-lines=95 --test-coverage-branches=65 --test-coverage-functions=96",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude=\"**/*.test.js\" --test-coverage-lines=100 --test-coverage-branches=86 --test-coverage-functions=98",
     "demo:curl": "node docs/demo-curl.mjs",
     "docs:openapi": "node scripts/export-openapi.mjs",
     "format": "prettier --write .",
