@@ -16,7 +16,7 @@ cd estimator-api
 docker compose up --build
 ```
 
-API listens on **http://localhost:3000** with persistent JSON storage.
+API listens on **http://localhost:3000** with persistent **SQLite** storage (`/var/data/estimator.sqlite` in the volume).
 
 Environment (already in `docker-compose.yml`):
 

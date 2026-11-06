@@ -1,8 +1,10 @@
-import { describe, it, before, after } from 'node:test'
+import { describe, it, before, after, beforeEach } from 'node:test'
 import assert from 'node:assert'
-import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { closeDb, getSqlitePath } from './db.js'
 import * as store from './store.js'
 import * as leadsStore from './leadsStore.js'
 
@@ -16,12 +18,17 @@ describe('store', () => {
     process.env.DATA_DIR = dir
   })
 
+  beforeEach(() => {
+    closeDb()
+  })
+
   after(async () => {
+    closeDb()
     process.env.DATA_DIR = prevDir
     await rm(dir, { recursive: true, force: true })
   })
 
-  it('appendQuote writes valid JSON file', async () => {
+  it('appendQuote writes a row into SQLite', async () => {
     const row = {
       id: '22222222-2222-4222-8222-222222222222',
       createdAt: new Date().toISOString(),
@@ -37,34 +44,26 @@ describe('store', () => {
     await store.appendQuote(row)
     const found = await store.findQuoteById(row.id)
     assert.strictEqual(found.id, row.id)
-    const raw = await readFile(join(dir, 'quotes.json'), 'utf8')
-    assert.doesNotThrow(() => JSON.parse(raw))
+    assert.ok(existsSync(getSqlitePath()))
   })
 
   it('checkStorageReady succeeds on writable dir', async () => {
     await assert.doesNotReject(() => store.checkStorageReady())
   })
 
-  it('readQuotes returns [] for a non-array file and throws on corrupt JSON', async () => {
-    await writeFile(join(dir, 'quotes.json'), '{}', 'utf8')
-    assert.deepStrictEqual(await store.readQuotes(), [])
-    await writeFile(join(dir, 'quotes.json'), '{broken', 'utf8')
-    await assert.rejects(() => store.readQuotes())
-  })
-
   it('quoteStatusBreakdown buckets unknown statuses as draft', async () => {
-    await writeFile(
-      join(dir, 'quotes.json'),
-      JSON.stringify([
-        {
-          id: '33333333-3333-4333-8333-333333333333',
-          createdAt: new Date().toISOString(),
-          projectType: 'landing',
-          status: 'mystery',
-        },
-      ]),
-      'utf8'
-    )
+    await store.writeQuotes([
+      {
+        id: '33333333-3333-4333-8333-333333333333',
+        createdAt: new Date().toISOString(),
+        projectType: 'landing',
+        addOnIds: [],
+        extraSections: '0',
+        min: 1,
+        max: 2,
+        status: 'mystery',
+      },
+    ])
     const counts = await store.quoteStatusBreakdown()
     assert.strictEqual(counts.draft, 1)
   })
@@ -89,7 +88,7 @@ describe('store', () => {
       lang: 'en',
       status: 'draft',
     }))
-    await writeFile(join(dir, 'quotes.json'), JSON.stringify(many), 'utf8')
+    await store.writeQuotes(many)
     const newest = {
       id: '55555555-5555-4555-8555-555555555555',
       createdAt: new Date().toISOString(),
@@ -108,29 +107,53 @@ describe('store', () => {
     assert.strictEqual(quotes[0].id, many[1].id)
   })
 
-  it('readLeads returns [] for a non-array file and throws on corrupt JSON', async () => {
-    await writeFile(join(dir, 'leads.json'), 'null', 'utf8')
-    assert.deepStrictEqual(await leadsStore.readLeads(), [])
-    await writeFile(join(dir, 'leads.json'), '{broken', 'utf8')
-    await assert.rejects(() => leadsStore.readLeads())
-  })
-
   it('leadStatusBreakdown buckets unknown statuses as new', async () => {
-    await writeFile(
-      join(dir, 'leads.json'),
-      JSON.stringify([
-        {
-          id: '66666666-6666-4666-8666-666666666666',
-          createdAt: new Date().toISOString(),
-          name: 'A',
-          email: 'a@example.com',
-          status: 'weird',
-        },
-      ]),
-      'utf8'
-    )
+    await leadsStore.writeLeads([
+      {
+        id: '66666666-6666-4666-8666-666666666666',
+        createdAt: new Date().toISOString(),
+        name: 'A',
+        email: 'a@example.com',
+        message: 'hi',
+        status: 'weird',
+      },
+    ])
     const counts = await leadsStore.leadStatusBreakdown()
     assert.strictEqual(counts.new, 1)
+  })
+
+  it('maps lead optional fields and list/limit edge cases', async () => {
+    const full = {
+      id: '12121212-1212-4121-8121-121212121212',
+      createdAt: new Date().toISOString(),
+      name: 'Full',
+      email: 'full@example.com',
+      message: 'msg',
+      subject: 'subj',
+      projectType: 'landing',
+      timeline: 'asap',
+      quoteRef: 'Q-1',
+      source: 'web',
+      lang: 'en',
+      status: 'contacted',
+    }
+    await leadsStore.appendLead(full)
+    const found = await leadsStore.findLeadById(full.id)
+    assert.strictEqual(found.subject, 'subj')
+    assert.strictEqual(found.quoteRef, 'Q-1')
+
+    await leadsStore.updateLeadById(full.id, {
+      status: '',
+      subject: undefined,
+    })
+    const after = await leadsStore.findLeadById(full.id)
+    assert.strictEqual(after.status, 'new')
+
+    assert.ok((await leadsStore.listLeadsRecent(Number.NaN)).length >= 1)
+    assert.ok((await leadsStore.listLeadsRecent(0)).length >= 1)
+    assert.ok((await leadsStore.listLeadsRecent(1000)).length >= 1)
+    assert.ok((await store.listQuotesRecent(Number.NaN)).length >= 0)
+    assert.strictEqual(await leadsStore.findLeadById('no-such-lead'), null)
   })
 
   it('updateLeadById returns null for a missing id', async () => {
@@ -150,7 +173,7 @@ describe('store', () => {
       message: 'm',
       status: 'new',
     }))
-    await writeFile(join(dir, 'leads.json'), JSON.stringify(many), 'utf8')
+    await leadsStore.writeLeads(many)
     const newest = {
       id: '88888888-8888-4888-8888-888888888888',
       createdAt: new Date().toISOString(),
@@ -164,5 +187,151 @@ describe('store', () => {
     assert.strictEqual(leads.length, 10_000)
     assert.strictEqual(leads[leads.length - 1].id, newest.id)
     assert.strictEqual(leads[0].id, many[1].id)
+  })
+
+  it('returns [] for corrupt add_on_ids JSON and rolls back duplicate inserts', async () => {
+    const { getDb } = await import('./db.js')
+    const db = getDb()
+    const insert = db.prepare(`
+      INSERT INTO quotes (
+        id, created_at, project_type, add_on_ids, extra_sections,
+        min, max, lang, quote_ref, summary, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    insert.run(
+      '99999999-9999-4999-8999-999999999999',
+      '2026-01-01T00:00:00.000Z',
+      'landing',
+      '{not-json',
+      '0',
+      1,
+      2,
+      'en',
+      null,
+      null,
+      'draft'
+    )
+    insert.run(
+      '88888888-8888-4888-8888-888888888888',
+      '2026-01-01T00:00:00.000Z',
+      'landing',
+      '"not-an-array"',
+      '0',
+      1,
+      2,
+      'en',
+      null,
+      null,
+      ''
+    )
+    assert.deepStrictEqual(
+      (await store.findQuoteById('99999999-9999-4999-8999-999999999999'))
+        .addOnIds,
+      []
+    )
+    const nonArray = await store.findQuoteById(
+      '88888888-8888-4888-8888-888888888888'
+    )
+    assert.deepStrictEqual(nonArray.addOnIds, [])
+    assert.strictEqual(nonArray.status, 'draft')
+
+    const row = {
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      createdAt: new Date().toISOString(),
+      projectType: 'landing',
+      addOnIds: 'design',
+      extraSections: '0',
+      min: 1,
+      max: 2,
+      lang: 'en',
+    }
+    await store.appendQuote(row)
+    await assert.rejects(() => store.appendQuote(row))
+    await assert.rejects(() =>
+      store.writeQuotes([{ createdAt: 'x', projectType: 'landing' }])
+    )
+    await store.writeQuotes([
+      {
+        id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+        createdAt: new Date().toISOString(),
+        projectType: 'landing',
+        addOnIds: null,
+        min: 1,
+        max: 2,
+      },
+    ])
+
+    const lead = {
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      createdAt: new Date().toISOString(),
+      name: 'Dup',
+      email: 'dup@example.com',
+      message: 'm',
+      status: 'new',
+    }
+    await leadsStore.appendLead(lead)
+    await assert.rejects(() => leadsStore.appendLead(lead))
+    await assert.rejects(() =>
+      leadsStore.writeLeads([{ createdAt: 'x', name: 'A', email: 'a@b.c' }])
+    )
+  })
+
+  it('imports legacy quotes.json and leads.json once into SQLite', async () => {
+    closeDb()
+    const legacyDir = await mkdtemp(join(tmpdir(), 'estimator-legacy-'))
+    const prev = process.env.DATA_DIR
+    process.env.DATA_DIR = legacyDir
+    try {
+      await writeFile(
+        join(legacyDir, 'quotes.json'),
+        JSON.stringify([
+          {
+            id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+            createdAt: '2026-01-02T00:00:00.000Z',
+            projectType: 'website',
+            addOnIds: ['i18n'],
+            extraSections: '2',
+            min: 10,
+            max: 20,
+            lang: 'en',
+            status: 'sent',
+            summary: 'legacy',
+          },
+        ]),
+        'utf8'
+      )
+      await writeFile(
+        join(legacyDir, 'leads.json'),
+        JSON.stringify([
+          {
+            id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+            createdAt: '2026-01-03T00:00:00.000Z',
+            name: 'Legacy',
+            email: 'legacy@example.com',
+            message: 'hi',
+            status: 'new',
+          },
+        ]),
+        'utf8'
+      )
+      const quote = await store.findQuoteById(
+        'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
+      )
+      assert.strictEqual(quote.projectType, 'website')
+      assert.deepStrictEqual(quote.addOnIds, ['i18n'])
+      const lead = await leadsStore.findLeadById(
+        'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+      )
+      assert.strictEqual(lead.email, 'legacy@example.com')
+      assert.ok(existsSync(join(legacyDir, 'quotes.json.migrated')))
+      assert.ok(existsSync(join(legacyDir, 'leads.json.migrated')))
+      await assert.rejects(() =>
+        readFile(join(legacyDir, 'quotes.json'), 'utf8')
+      )
+    } finally {
+      closeDb()
+      process.env.DATA_DIR = prev
+      await rm(legacyDir, { recursive: true, force: true })
+    }
   })
 })

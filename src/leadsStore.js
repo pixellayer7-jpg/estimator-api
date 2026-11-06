@@ -1,105 +1,208 @@
-import { mkdir, readFile, writeFile, rename } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { getDb } from './db.js'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
 const MAX_LEADS = 10_000
 
-let appendQueue = Promise.resolve()
+let writeQueue = Promise.resolve()
 
-function dataPath() {
-  const root = join(__dirname, '..')
-  const dir = process.env.DATA_DIR || join(root, 'data')
-  return { dir, file: join(dir, 'leads.json') }
+function enqueue(task) {
+  writeQueue = writeQueue.then(task, task)
+  return writeQueue
 }
 
-async function ensureDir(dir) {
-  await mkdir(dir, { recursive: true })
-}
-
-export async function readLeads() {
-  const { dir, file } = dataPath()
-  await ensureDir(dir)
-  try {
-    const raw = await readFile(file, 'utf8')
-    const data = JSON.parse(raw)
-    return Array.isArray(data) ? data : []
-  } catch (e) {
-    if (e && (e.code === 'ENOENT' || e.code === 'ENOTDIR')) return []
-    throw e
+function rowToLead(row) {
+  if (!row) return null
+  return {
+    id: row.id,
+    createdAt: row.created_at,
+    name: row.name,
+    email: row.email,
+    message: row.message,
+    subject: row.subject,
+    projectType: row.project_type,
+    timeline: row.timeline,
+    quoteRef: row.quote_ref,
+    source: row.source,
+    lang: row.lang,
+    status: row.status || 'new',
   }
 }
 
-async function writeLeadsAtomic(leads) {
-  const { dir, file } = dataPath()
-  await ensureDir(dir)
-  const tmp = `${file}.tmp`
-  await writeFile(tmp, JSON.stringify(leads), 'utf8')
-  await rename(tmp, file)
+/** @returns {object[]} */
+export async function readLeads() {
+  const db = getDb()
+  const rows = db
+    .prepare('SELECT * FROM leads ORDER BY created_at ASC, id ASC')
+    .all()
+  return rows.map(rowToLead)
+}
+
+export async function writeLeads(leads) {
+  return enqueue(async () => {
+    const db = getDb()
+    db.exec('BEGIN')
+    try {
+      db.prepare('DELETE FROM leads').run()
+      const insert = db.prepare(`
+        INSERT INTO leads (
+          id, created_at, name, email, message, subject, project_type,
+          timeline, quote_ref, source, lang, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      for (const l of leads) {
+        insert.run(
+          l.id,
+          l.createdAt,
+          l.name,
+          l.email,
+          l.message ?? null,
+          l.subject ?? null,
+          l.projectType ?? null,
+          l.timeline ?? null,
+          l.quoteRef ?? null,
+          l.source ?? null,
+          l.lang ?? null,
+          l.status || 'new'
+        )
+      }
+      db.exec('COMMIT')
+    } catch (e) {
+      db.exec('ROLLBACK')
+      throw e
+    }
+  })
 }
 
 export async function appendLead(record) {
-  appendQueue = appendQueue.then(async () => {
-    let leads = await readLeads()
-    leads.push(record)
-    if (leads.length > MAX_LEADS) {
-      leads = leads.slice(-MAX_LEADS)
+  return enqueue(async () => {
+    const db = getDb()
+    db.exec('BEGIN')
+    try {
+      db.prepare(
+        `
+        INSERT INTO leads (
+          id, created_at, name, email, message, subject, project_type,
+          timeline, quote_ref, source, lang, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `
+      ).run(
+        record.id,
+        record.createdAt,
+        record.name,
+        record.email,
+        record.message ?? null,
+        record.subject ?? null,
+        record.projectType ?? null,
+        record.timeline ?? null,
+        record.quoteRef ?? null,
+        record.source ?? null,
+        record.lang ?? null,
+        record.status || 'new'
+      )
+      const count = db.prepare('SELECT COUNT(*) AS n FROM leads').get().n
+      if (count > MAX_LEADS) {
+        db.prepare(
+          `
+          DELETE FROM leads WHERE id IN (
+            SELECT id FROM leads
+            ORDER BY created_at ASC, id ASC
+            LIMIT ?
+          )
+        `
+        ).run(count - MAX_LEADS)
+      }
+      db.exec('COMMIT')
+      return record
+    } catch (e) {
+      db.exec('ROLLBACK')
+      throw e
     }
-    await writeLeadsAtomic(leads)
-    return record
   })
-  return appendQueue
 }
 
 export async function listLeadsRecent(limit = 20) {
-  const leads = await readLeads()
+  const db = getDb()
   const n = Math.min(100, Math.max(1, Math.floor(limit) || 20))
-  return leads
-    .slice(-n)
-    .reverse()
-    .map((l) => ({
-      id: l.id,
-      createdAt: l.createdAt,
-      name: l.name,
-      email: l.email,
-      source: l.source,
-      status: l.status || 'new',
-      quoteRef: l.quoteRef ?? null,
-      projectType: l.projectType ?? null,
-    }))
+  const rows = db
+    .prepare(
+      `
+      SELECT id, created_at, name, email, source, status, quote_ref, project_type
+      FROM leads
+      ORDER BY created_at DESC, id DESC
+      LIMIT ?
+    `
+    )
+    .all(n)
+  return rows.map((l) => ({
+    id: l.id,
+    createdAt: l.created_at,
+    name: l.name,
+    email: l.email,
+    source: l.source,
+    status: l.status || 'new',
+    quoteRef: l.quote_ref ?? null,
+    projectType: l.project_type ?? null,
+  }))
 }
 
 export async function countLeads() {
-  const leads = await readLeads()
-  return leads.length
+  const db = getDb()
+  return db.prepare('SELECT COUNT(*) AS n FROM leads').get().n
 }
 
 export async function findLeadById(id) {
-  const leads = await readLeads()
-  return leads.find((l) => l.id === id) ?? null
+  const db = getDb()
+  const row = db.prepare('SELECT * FROM leads WHERE id = ?').get(id)
+  return rowToLead(row)
 }
 
 export async function updateLeadById(id, patch) {
-  let updated = null
-  appendQueue = appendQueue.then(async () => {
-    const leads = await readLeads()
-    const idx = leads.findIndex((l) => l.id === id)
-    if (idx === -1) return null
-    updated = { ...leads[idx], ...patch }
-    leads[idx] = updated
-    await writeLeadsAtomic(leads)
+  return enqueue(async () => {
+    const db = getDb()
+    const existing = db.prepare('SELECT * FROM leads WHERE id = ?').get(id)
+    if (!existing) return null
+    const current = rowToLead(existing)
+    const updated = { ...current, ...patch }
+    db.prepare(
+      `
+      UPDATE leads SET
+        created_at = ?,
+        name = ?,
+        email = ?,
+        message = ?,
+        subject = ?,
+        project_type = ?,
+        timeline = ?,
+        quote_ref = ?,
+        source = ?,
+        lang = ?,
+        status = ?
+      WHERE id = ?
+    `
+    ).run(
+      updated.createdAt,
+      updated.name,
+      updated.email,
+      updated.message ?? null,
+      updated.subject ?? null,
+      updated.projectType ?? null,
+      updated.timeline ?? null,
+      updated.quoteRef ?? null,
+      updated.source ?? null,
+      updated.lang ?? null,
+      updated.status || 'new',
+      id
+    )
     return updated
   })
-  await appendQueue
-  return updated
 }
 
 /** Status counts for /api/v1/stats */
 export async function leadStatusBreakdown() {
-  const leads = await readLeads()
+  const db = getDb()
+  const rows = db.prepare('SELECT status FROM leads').all()
   const counts = { new: 0, contacted: 0, qualified: 0, closed: 0 }
-  for (const l of leads) {
-    const s = l.status || 'new'
+  for (const row of rows) {
+    const s = row.status || 'new'
     if (s in counts) counts[s] += 1
     else counts.new += 1
   }

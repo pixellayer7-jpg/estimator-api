@@ -1,9 +1,10 @@
 import { describe, it, before, after } from 'node:test'
 import assert from 'node:assert'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import buildApp from './app.js'
+import { closeDb } from './db.js'
 import * as store from './store.js'
 
 describe('estimator-api', () => {
@@ -21,6 +22,7 @@ describe('estimator-api', () => {
 
   after(async () => {
     await app.close()
+    closeDb()
     process.env.DATA_DIR = prevDir
     await rm(dir, { recursive: true, force: true })
   })
@@ -47,7 +49,7 @@ describe('estimator-api', () => {
     const res = await app.inject({ method: 'GET', url: '/' })
     assert.strictEqual(res.statusCode, 200)
     assert.strictEqual(res.headers['x-content-type-options'], 'nosniff')
-    assert.strictEqual(res.headers['x-api-version'], '1.2.3')
+    assert.strictEqual(res.headers['x-api-version'], '1.3.0')
     const body = JSON.parse(res.body)
     assert.strictEqual(body.service, 'estimator-api')
     assert.ok(body.links?.landing)
@@ -62,7 +64,7 @@ describe('estimator-api', () => {
     const body = JSON.parse(res.body)
     assert.strictEqual(body.ok, true)
     assert.strictEqual(body.storage, 'ready')
-    assert.strictEqual(body.version, '1.2.3')
+    assert.strictEqual(body.version, '1.3.0')
   })
 
   it('CORS preflight allows PATCH for CRM status updates', async () => {
@@ -425,7 +427,7 @@ describe('estimator-api', () => {
     assert.ok(typeof body.totalLeads === 'number')
     assert.ok(body.quotesByStatus)
     assert.ok(body.leadsByStatus)
-    assert.strictEqual(body.version, '1.2.3')
+    assert.strictEqual(body.version, '1.3.0')
   })
 
   it('POST /api/v1/leads then GET list', async () => {
@@ -520,8 +522,8 @@ describe('estimator-api', () => {
   it('GET /health returns 503 when storage is unavailable', async () => {
     const prev = process.env.DATA_DIR
     const blocker = join(dir, 'not-a-directory')
-    const { writeFile } = await import('node:fs/promises')
     await writeFile(blocker, 'blocked')
+    closeDb()
     process.env.DATA_DIR = join(blocker, 'nested')
     try {
       const res = await app.inject({ method: 'GET', url: '/health' })
@@ -532,13 +534,16 @@ describe('estimator-api', () => {
       assert.ok(typeof body.error === 'string' && body.error.length > 0)
     } finally {
       process.env.DATA_DIR = prev
+      closeDb()
     }
   })
 
-  it('GET /api/v1/quotes returns 500 when quote storage is corrupt', async () => {
-    const { writeFile, unlink } = await import('node:fs/promises')
-    const file = join(dir, 'quotes.json')
-    await writeFile(file, '{not-json')
+  it('GET /api/v1/quotes returns 500 when SQLite storage is unavailable', async () => {
+    const prev = process.env.DATA_DIR
+    const blocker = join(dir, 'sqlite-block')
+    await writeFile(blocker, 'blocked')
+    closeDb()
+    process.env.DATA_DIR = join(blocker, 'nested')
     try {
       const res = await app.inject({ url: '/api/v1/quotes' })
       assert.strictEqual(res.statusCode, 500)
@@ -546,7 +551,8 @@ describe('estimator-api', () => {
         error: 'Internal Server Error',
       })
     } finally {
-      await unlink(file).catch(() => {})
+      process.env.DATA_DIR = prev
+      closeDb()
     }
   })
 

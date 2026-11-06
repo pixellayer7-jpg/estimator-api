@@ -1,120 +1,219 @@
-import { mkdir, readFile, writeFile, rename, unlink } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { getDb } from './db.js'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
 const MAX_QUOTES = 10_000
 
-let appendQueue = Promise.resolve()
+let writeQueue = Promise.resolve()
 
-function dataPath() {
-  const root = join(__dirname, '..')
-  const dir = process.env.DATA_DIR || join(root, 'data')
-  return { dir, file: join(dir, 'quotes.json') }
+function enqueue(task) {
+  writeQueue = writeQueue.then(task, task)
+  return writeQueue
 }
 
-async function ensureDir(dir) {
-  await mkdir(dir, { recursive: true })
-}
-
-export async function readQuotes() {
-  const { dir, file } = dataPath()
-  await ensureDir(dir)
+function rowToQuote(row) {
+  if (!row) return null
+  let addOnIds
   try {
-    const raw = await readFile(file, 'utf8')
-    const data = JSON.parse(raw)
-    return Array.isArray(data) ? data : []
-  } catch (e) {
-    if (e && (e.code === 'ENOENT' || e.code === 'ENOTDIR')) return []
-    throw e
+    const parsed = JSON.parse(row.add_on_ids || '[]')
+    addOnIds = Array.isArray(parsed) ? parsed : []
+  } catch {
+    addOnIds = []
+  }
+  return {
+    id: row.id,
+    createdAt: row.created_at,
+    projectType: row.project_type,
+    addOnIds,
+    extraSections: row.extra_sections,
+    min: row.min,
+    max: row.max,
+    lang: row.lang,
+    quoteRef: row.quote_ref,
+    summary: row.summary,
+    status: row.status || 'draft',
   }
 }
 
-async function writeQuotesAtomic(quotes) {
-  const { dir, file } = dataPath()
-  await ensureDir(dir)
-  const tmp = `${file}.tmp`
-  await writeFile(tmp, JSON.stringify(quotes), 'utf8')
-  await rename(tmp, file)
+/** @returns {object[]} */
+export async function readQuotes() {
+  const db = getDb()
+  const rows = db
+    .prepare('SELECT * FROM quotes ORDER BY created_at ASC, id ASC')
+    .all()
+  return rows.map(rowToQuote)
 }
 
+/** Replace all quotes (test helper / admin reset). */
 export async function writeQuotes(quotes) {
-  await writeQuotesAtomic(quotes)
+  return enqueue(async () => {
+    const db = getDb()
+    db.exec('BEGIN')
+    try {
+      db.prepare('DELETE FROM quotes').run()
+      const insert = db.prepare(`
+        INSERT INTO quotes (
+          id, created_at, project_type, add_on_ids, extra_sections,
+          min, max, lang, quote_ref, summary, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      for (const q of quotes) {
+        insert.run(
+          q.id,
+          q.createdAt,
+          q.projectType,
+          JSON.stringify(Array.isArray(q.addOnIds) ? q.addOnIds : []),
+          String(q.extraSections ?? '0'),
+          Number(q.min),
+          Number(q.max),
+          q.lang ?? null,
+          q.quoteRef ?? null,
+          q.summary ?? null,
+          q.status || 'draft'
+        )
+      }
+      db.exec('COMMIT')
+    } catch (e) {
+      db.exec('ROLLBACK')
+      throw e
+    }
+  })
 }
 
 export async function appendQuote(record) {
-  appendQueue = appendQueue.then(async () => {
-    let quotes = await readQuotes()
-    quotes.push(record)
-    if (quotes.length > MAX_QUOTES) {
-      quotes = quotes.slice(-MAX_QUOTES)
+  return enqueue(async () => {
+    const db = getDb()
+    db.exec('BEGIN')
+    try {
+      db.prepare(
+        `
+        INSERT INTO quotes (
+          id, created_at, project_type, add_on_ids, extra_sections,
+          min, max, lang, quote_ref, summary, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `
+      ).run(
+        record.id,
+        record.createdAt,
+        record.projectType,
+        JSON.stringify(Array.isArray(record.addOnIds) ? record.addOnIds : []),
+        String(record.extraSections ?? '0'),
+        Number(record.min),
+        Number(record.max),
+        record.lang ?? null,
+        record.quoteRef ?? null,
+        record.summary ?? null,
+        record.status || 'draft'
+      )
+      const count = db.prepare('SELECT COUNT(*) AS n FROM quotes').get().n
+      if (count > MAX_QUOTES) {
+        db.prepare(
+          `
+          DELETE FROM quotes WHERE id IN (
+            SELECT id FROM quotes
+            ORDER BY created_at ASC, id ASC
+            LIMIT ?
+          )
+        `
+        ).run(count - MAX_QUOTES)
+      }
+      db.exec('COMMIT')
+      return record
+    } catch (e) {
+      db.exec('ROLLBACK')
+      throw e
     }
-    await writeQuotesAtomic(quotes)
-    return record
   })
-  return appendQueue
 }
 
 export async function findQuoteById(id) {
-  const quotes = await readQuotes()
-  return quotes.find((q) => q.id === id) ?? null
+  const db = getDb()
+  const row = db.prepare('SELECT * FROM quotes WHERE id = ?').get(id)
+  return rowToQuote(row)
 }
 
 /** Newest first; `limit` clamped to 1–100. Returns summary-safe rows (no full `summary`). */
 export async function listQuotesRecent(limit = 20) {
-  const quotes = await readQuotes()
+  const db = getDb()
   const n = Math.min(100, Math.max(1, Math.floor(limit) || 20))
-  const tail = quotes.slice(-n).reverse()
-  return tail.map((q) => ({
-    id: q.id,
-    createdAt: q.createdAt,
-    projectType: q.projectType,
-    min: q.min,
-    max: q.max,
-    lang: q.lang,
-    status: q.status || 'draft',
+  const rows = db
+    .prepare(
+      `
+      SELECT id, created_at, project_type, min, max, lang, status
+      FROM quotes
+      ORDER BY created_at DESC, id DESC
+      LIMIT ?
+    `
+    )
+    .all(n)
+  return rows.map((row) => ({
+    id: row.id,
+    createdAt: row.created_at,
+    projectType: row.project_type,
+    min: row.min,
+    max: row.max,
+    lang: row.lang,
+    status: row.status || 'draft',
   }))
 }
 
 export async function updateQuoteById(id, patch) {
-  let updated = null
-  appendQueue = appendQueue.then(async () => {
-    const quotes = await readQuotes()
-    const idx = quotes.findIndex((q) => q.id === id)
-    if (idx === -1) return null
-    updated = { ...quotes[idx], ...patch }
-    quotes[idx] = updated
-    await writeQuotesAtomic(quotes)
+  return enqueue(async () => {
+    const db = getDb()
+    const existing = db.prepare('SELECT * FROM quotes WHERE id = ?').get(id)
+    if (!existing) return null
+    const current = rowToQuote(existing)
+    const updated = { ...current, ...patch }
+    db.prepare(
+      `
+      UPDATE quotes SET
+        created_at = ?,
+        project_type = ?,
+        add_on_ids = ?,
+        extra_sections = ?,
+        min = ?,
+        max = ?,
+        lang = ?,
+        quote_ref = ?,
+        summary = ?,
+        status = ?
+      WHERE id = ?
+    `
+    ).run(
+      updated.createdAt,
+      updated.projectType,
+      JSON.stringify(Array.isArray(updated.addOnIds) ? updated.addOnIds : []),
+      String(updated.extraSections ?? '0'),
+      Number(updated.min),
+      Number(updated.max),
+      updated.lang ?? null,
+      updated.quoteRef ?? null,
+      updated.summary ?? null,
+      updated.status || 'draft',
+      id
+    )
     return updated
   })
-  await appendQueue
-  return updated
 }
 
-/** Total stored quotes (for stats endpoint). */
 export async function countQuotes() {
-  const quotes = await readQuotes()
-  return quotes.length
+  const db = getDb()
+  return db.prepare('SELECT COUNT(*) AS n FROM quotes').get().n
 }
 
 export async function quoteStatusBreakdown() {
-  const quotes = await readQuotes()
+  const db = getDb()
+  const rows = db.prepare('SELECT status FROM quotes').all()
   const counts = { draft: 0, sent: 0, accepted: 0, declined: 0 }
-  for (const q of quotes) {
-    const s = q.status || 'draft'
+  for (const row of rows) {
+    const s = row.status || 'draft'
     if (s in counts) counts[s] += 1
     else counts.draft += 1
   }
   return counts
 }
 
-/** Verify DATA_DIR is writable (for /health). */
+/** Verify DATA_DIR SQLite is writable (for /health). */
 export async function checkStorageReady() {
-  const { dir } = dataPath()
-  await ensureDir(dir)
-  const probe = join(dir, '.write-probe')
-  await writeFile(probe, 'ok', 'utf8')
-  const raw = await readFile(probe, 'utf8')
-  await unlink(probe).catch(() => {})
-  if (raw !== 'ok') throw new Error('Storage probe failed')
+  const db = getDb()
+  const row = db.prepare('SELECT 1 AS ok').get()
+  if (!row || row.ok !== 1) throw new Error('Storage probe failed')
 }

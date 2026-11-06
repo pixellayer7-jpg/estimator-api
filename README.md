@@ -7,7 +7,7 @@ Minimal **Node.js + Fastify** service for **PixelLayer** to **save** calculator 
 
 **Live frontends:** [Landing](https://pixellayer7-jpg.github.io/1/) · [Quote calculator](https://pixellayer7-jpg.github.io/project-estimator/) · [CRM admin](https://pixellayer7-jpg.github.io/project-estimator/?admin=1) (wire with `VITE_QUOTE_API_URL` / `VITE_LEAD_API_URL` + CORS when deployed).
 
-## What it does (v1.2.3)
+## What it does (v1.3.0)
 
 | Method  | Path                      | Auth                | Description                                                                                                                                                  |
 | ------- | ------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -30,7 +30,7 @@ Minimal **Node.js + Fastify** service for **PixelLayer** to **save** calculator 
 
 **Leads:** `source` is `landing` \| `calculator` (default `landing`). Rate limits: quotes POST 30/min, leads POST 20/min (global 100/min).
 
-Storage is **JSON files** under `data/` (`quotes.json`, leads store — directory gitignored). Good for demos; use PostgreSQL when you need concurrency and backups.
+Storage is **SQLite** under `DATA_DIR` (`estimator.sqlite`, WAL mode, directory gitignored). On first boot, legacy `quotes.json` / `leads.json` are imported once and renamed to `*.migrated`. Good for demos and single-node deploys; use PostgreSQL when you need multi-instance writes and managed backups.
 
 Unknown paths return **`404`** `{ "error": "Not found" }`. Non-UUID `:id` → **400** `{ "error": "Invalid id" }`.
 
@@ -76,15 +76,15 @@ curl -s -X PATCH http://localhost:3000/api/v1/leads/<uuid> \
 
 ## Environment
 
-| Variable                  | Meaning                                                           |
-| ------------------------- | ----------------------------------------------------------------- |
-| `PORT`                    | Listen port (default `3000`)                                      |
-| `HOST`                    | Bind address (default `0.0.0.0`)                                  |
-| `CORS_ORIGIN`             | Comma-separated allowed origins; empty = allow all (**dev only**) |
-| `DATA_DIR`                | Override directory for JSON stores                                |
-| `LIST_QUOTES_TOKEN`       | Optional bearer for list / PATCH / get-lead routes                |
-| `FRONTEND_CALCULATOR_URL` | Base URL for `links.calculator` in POST quote responses           |
-| `FRONTEND_LANDING_URL`    | Base URL for `links.contact` (`?quote=<id>#contact`)              |
+| Variable                  | Meaning                                                            |
+| ------------------------- | ------------------------------------------------------------------ |
+| `PORT`                    | Listen port (default `3000`)                                       |
+| `HOST`                    | Bind address (default `0.0.0.0`)                                   |
+| `CORS_ORIGIN`             | Comma-separated allowed origins; empty = allow all (**dev only**)  |
+| `DATA_DIR`                | Override directory for `estimator.sqlite` (and legacy JSON import) |
+| `LIST_QUOTES_TOKEN`       | Optional bearer for list / PATCH / get-lead routes                 |
+| `FRONTEND_CALCULATOR_URL` | Base URL for `links.calculator` in POST quote responses            |
+| `FRONTEND_LANDING_URL`    | Base URL for `links.contact` (`?quote=<id>#contact`)               |
 
 ## Deploy (Docker / Render / Railway)
 
@@ -95,8 +95,12 @@ docker build -t pixelayer-estimator-api .
 docker run -p 3000:3000 \
   -e CORS_ORIGIN=https://pixellayer7-jpg.github.io/project-estimator,https://pixellayer7-jpg.github.io/1 \
   -e LIST_QUOTES_TOKEN=change-me \
+  -e DATA_DIR=/var/data \
+  -v estimator-data:/var/data \
   pixelayer-estimator-api
 ```
+
+Compose (`docker compose up --build`) already mounts volume `estimator-data` → `/var/data` for the SQLite file.
 
 ### Render (one-click blueprint)
 
@@ -117,7 +121,7 @@ Use **Railway**, **Render**, **Fly.io**, etc.: HTTPS subdomain. Set `CORS_ORIGIN
 
 ```bash
 npm test              # node --test
-npm run test:coverage # same, with coverage gates (lines 100%, branches 86%, functions 98%)
+npm run test:coverage # same, with coverage gates (lines 100%, branches 82%, functions 100%)
 npm run lint          # ESLint 10 flat config
 npm run format:check  # Prettier
 npm run check         # format:check + lint + test

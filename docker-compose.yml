@@ -9,6 +9,7 @@ services:
       LIST_QUOTES_TOKEN: dev-token
       CORS_ORIGIN: http://localhost:5173,http://localhost:5174,https://pixellayer7-jpg.github.io
     volumes:
+      # Persists estimator.sqlite (and any *.migrated legacy JSON)
       - estimator-data:/var/data
 
 volumes:

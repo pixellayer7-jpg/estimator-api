@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.0
+
+- Storage: quotes and leads now live in **SQLite** (`DATA_DIR/estimator.sqlite`) via Node’s built-in `node:sqlite` (WAL, zero native deps — Alpine/Docker friendly)
+- One-time migration: existing `quotes.json` / `leads.json` are imported on first open, then renamed to `*.migrated`
+- Public HTTP API unchanged (same routes, schemas, and camelCase JSON)
+- Docker / compose: same `DATA_DIR` volume now holds the SQLite file (and optional leftover `*.migrated` JSON)
+- Coverage gates: lines 100% / branches 82% / functions 100% (branch floor adjusted for SQLite defensive paths)
+
 ## 1.2.3
 
 - Tests: health 503 when storage fails, corrupt quote store → 500, invalid lead/quote ids and quoteRef, non-finite min/max, lead GET by id and limit parsing
