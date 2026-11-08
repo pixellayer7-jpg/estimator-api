@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.0
+
+- Backup: `GET /api/v1/backup` downloads a consistent SQLite snapshot (`VACUUM INTO` after WAL checkpoint); always requires `LIST_QUOTES_TOKEN` (503 if unset)
+- CLI: `npm run backup` writes the same snapshot into `DATA_DIR`
+- OpenAPI: Backup tag + binary response; catalog `endpoints.backup`
+
 ## 1.3.0
 
 - Storage: quotes and leads now live in **SQLite** (`DATA_DIR/estimator.sqlite`) via Node’s built-in `node:sqlite` (WAL, zero native deps — Alpine/Docker friendly)

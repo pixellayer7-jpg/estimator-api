@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "PixelLayer estimator-api",
-    "version": "1.3.0",
-    "description": "File-backed quote + lead CRM for PixelLayer. Public GET by quote UUID for share links; Bearer protects list/PATCH when LIST_QUOTES_TOKEN is set.",
+    "version": "1.4.0",
+    "description": "SQLite-backed quote + lead CRM for PixelLayer. Public GET by quote UUID for share links; Bearer protects list/PATCH when LIST_QUOTES_TOKEN is set. GET /api/v1/backup always requires that token.",
     "contact": {
       "name": "PixelLayer L.L.C",
       "email": "pixellayer7@gmail.com",
@@ -29,6 +29,9 @@
     },
     {
       "name": "Leads"
+    },
+    {
+      "name": "Backup"
     }
   ],
   "components": {
@@ -37,7 +40,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "opaque",
-        "description": "Same value as LIST_QUOTES_TOKEN. Required for list/PATCH (and GET lead) when the env var is set."
+        "description": "Same value as LIST_QUOTES_TOKEN. Required for list/PATCH (and GET lead) when the env var is set; always required for GET /api/v1/backup."
       }
     },
     "schemas": {
@@ -335,7 +338,7 @@
             "qualified": 0,
             "closed": 0
           },
-          "version": "1.3.0"
+          "version": "1.4.0"
         }
       }
     }
@@ -379,6 +382,53 @@
         "responses": {
           "200": {
             "description": "OpenAPI 3.0.3 JSON"
+          }
+        }
+      }
+    },
+    "/api/v1/backup": {
+      "get": {
+        "tags": [
+          "Backup"
+        ],
+        "summary": "Download a SQLite snapshot (VACUUM INTO)",
+        "description": "Always requires LIST_QUOTES_TOKEN. Returns application/vnd.sqlite3 after a WAL checkpoint.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SQLite database file",
+            "content": {
+              "application/vnd.sqlite3": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong Bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "LIST_QUOTES_TOKEN not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }

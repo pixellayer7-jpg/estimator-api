@@ -1,10 +1,11 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import rateLimit from '@fastify/rate-limit'
 import { randomUUID, timingSafeEqual } from 'node:crypto'
+import { createSqliteBackup } from './db.js'
 import {
   appendQuote,
   findQuoteById,
@@ -132,6 +133,24 @@ function authorizeQuoteList(request, reply) {
   return false
 }
 
+/** Backup always requires a configured token (never open even in local-dev). */
+function authorizeBackup(request, reply) {
+  const expected = String(process.env.LIST_QUOTES_TOKEN || '').trim()
+  if (!expected) {
+    reply.code(503).send({
+      error: 'Backup requires LIST_QUOTES_TOKEN to be configured',
+    })
+    return false
+  }
+  const provided = getBearerToken(request)
+  if (provided && safeTokenEquals(provided, expected)) return true
+  reply
+    .header('WWW-Authenticate', 'Bearer')
+    .code(401)
+    .send({ error: 'Unauthorized' })
+  return false
+}
+
 export function buildOpenApiDocument(version) {
   const bearer = [{ bearerAuth: [] }]
   const uuidParam = {
@@ -183,7 +202,7 @@ export function buildOpenApiDocument(version) {
       title: 'PixelLayer estimator-api',
       version,
       description:
-        'File-backed quote + lead CRM for PixelLayer. Public GET by quote UUID for share links; Bearer protects list/PATCH when LIST_QUOTES_TOKEN is set.',
+        'SQLite-backed quote + lead CRM for PixelLayer. Public GET by quote UUID for share links; Bearer protects list/PATCH when LIST_QUOTES_TOKEN is set. GET /api/v1/backup always requires that token.',
       contact: {
         name: 'PixelLayer L.L.C',
         email: 'pixellayer7@gmail.com',
@@ -197,7 +216,12 @@ export function buildOpenApiDocument(version) {
         description: 'Deployed API (Render / Railway / Fly)',
       },
     ],
-    tags: [{ name: 'System' }, { name: 'Quotes' }, { name: 'Leads' }],
+    tags: [
+      { name: 'System' },
+      { name: 'Quotes' },
+      { name: 'Leads' },
+      { name: 'Backup' },
+    ],
     components: {
       securitySchemes: {
         bearerAuth: {
@@ -205,7 +229,7 @@ export function buildOpenApiDocument(version) {
           scheme: 'bearer',
           bearerFormat: 'opaque',
           description:
-            'Same value as LIST_QUOTES_TOKEN. Required for list/PATCH (and GET lead) when the env var is set.',
+            'Same value as LIST_QUOTES_TOKEN. Required for list/PATCH (and GET lead) when the env var is set; always required for GET /api/v1/backup.',
         },
       },
       schemas: {
@@ -269,6 +293,41 @@ export function buildOpenApiDocument(version) {
           tags: ['System'],
           summary: 'This OpenAPI document',
           responses: { 200: { description: 'OpenAPI 3.0.3 JSON' } },
+        },
+      },
+      '/api/v1/backup': {
+        get: {
+          tags: ['Backup'],
+          summary: 'Download a SQLite snapshot (VACUUM INTO)',
+          description:
+            'Always requires LIST_QUOTES_TOKEN. Returns application/vnd.sqlite3 after a WAL checkpoint.',
+          security: bearer,
+          responses: {
+            200: {
+              description: 'SQLite database file',
+              content: {
+                'application/vnd.sqlite3': {
+                  schema: { type: 'string', format: 'binary' },
+                },
+              },
+            },
+            401: {
+              description: 'Missing or wrong Bearer token',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' },
+                },
+              },
+            },
+            503: {
+              description: 'LIST_QUOTES_TOKEN not configured',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' },
+                },
+              },
+            },
+          },
         },
       },
       '/api/v1/stats': {
@@ -488,7 +547,8 @@ export function buildOpenApiDocument(version) {
   }
 }
 
-export default async function buildApp() {
+export default async function buildApp(options = {}) {
+  const runBackup = options.createSqliteBackup || createSqliteBackup
   const app = Fastify({ logger: false, bodyLimit: 262_144 })
 
   const origins = (process.env.CORS_ORIGIN || '')
@@ -544,10 +604,39 @@ export default async function buildApp() {
       patchLead: 'PATCH /api/v1/leads/:id',
       openapi: 'GET /api/v1/openapi.json',
       stats: 'GET /api/v1/stats',
+      backup: 'GET /api/v1/backup',
     },
   }))
 
   app.get('/api/v1/openapi.json', async () => buildOpenApiDocument(pkg.version))
+
+  app.get(
+    '/api/v1/backup',
+    {
+      config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+    },
+    async (request, reply) => {
+      if (!authorizeBackup(request, reply)) return
+      let backupPath = null
+      try {
+        const { path, filename } = runBackup()
+        backupPath = path
+        const body = readFileSync(path)
+        return reply
+          .header('Content-Type', 'application/vnd.sqlite3')
+          .header('Content-Disposition', `attachment; filename="${filename}"`)
+          .send(body)
+      } catch (e) {
+        return reply.code(500).send({
+          error: e instanceof Error ? e.message : 'Backup failed',
+        })
+      } finally {
+        if (backupPath) {
+          rmSync(backupPath, { force: true })
+        }
+      }
+    }
+  )
 
   app.get('/api/v1/stats', async () => {
     const [totalQuotes, totalLeads, quotesByStatus, leadsByStatus] =

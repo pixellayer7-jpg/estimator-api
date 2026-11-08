@@ -49,7 +49,7 @@ describe('estimator-api', () => {
     const res = await app.inject({ method: 'GET', url: '/' })
     assert.strictEqual(res.statusCode, 200)
     assert.strictEqual(res.headers['x-content-type-options'], 'nosniff')
-    assert.strictEqual(res.headers['x-api-version'], '1.3.0')
+    assert.strictEqual(res.headers['x-api-version'], '1.4.0')
     const body = JSON.parse(res.body)
     assert.strictEqual(body.service, 'estimator-api')
     assert.ok(body.links?.landing)
@@ -64,7 +64,7 @@ describe('estimator-api', () => {
     const body = JSON.parse(res.body)
     assert.strictEqual(body.ok, true)
     assert.strictEqual(body.storage, 'ready')
-    assert.strictEqual(body.version, '1.3.0')
+    assert.strictEqual(body.version, '1.4.0')
   })
 
   it('CORS preflight allows PATCH for CRM status updates', async () => {
@@ -427,7 +427,91 @@ describe('estimator-api', () => {
     assert.ok(typeof body.totalLeads === 'number')
     assert.ok(body.quotesByStatus)
     assert.ok(body.leadsByStatus)
-    assert.strictEqual(body.version, '1.3.0')
+    assert.strictEqual(body.version, '1.4.0')
+  })
+
+  it('GET /api/v1/backup requires token and returns a SQLite file', async () => {
+    const unset = await app.inject({ method: 'GET', url: '/api/v1/backup' })
+    assert.strictEqual(unset.statusCode, 503)
+    assert.deepStrictEqual(JSON.parse(unset.body), {
+      error: 'Backup requires LIST_QUOTES_TOKEN to be configured',
+    })
+
+    const prev = process.env.LIST_QUOTES_TOKEN
+    process.env.LIST_QUOTES_TOKEN = 'backup-secret'
+    try {
+      const noAuth = await app.inject({ method: 'GET', url: '/api/v1/backup' })
+      assert.strictEqual(noAuth.statusCode, 401)
+
+      const ok = await app.inject({
+        method: 'GET',
+        url: '/api/v1/backup',
+        headers: { authorization: 'Bearer backup-secret' },
+      })
+      assert.strictEqual(ok.statusCode, 200)
+      assert.strictEqual(ok.headers['content-type'], 'application/vnd.sqlite3')
+      assert.match(
+        String(ok.headers['content-disposition'] || ''),
+        /attachment; filename="estimator-backup-/
+      )
+      assert.ok(Buffer.isBuffer(ok.rawPayload) || typeof ok.body === 'string')
+      const buf = Buffer.isBuffer(ok.rawPayload)
+        ? ok.rawPayload
+        : Buffer.from(ok.body)
+      assert.strictEqual(
+        buf.subarray(0, 15).toString('utf8'),
+        'SQLite format 3'
+      )
+    } finally {
+      if (prev === undefined) delete process.env.LIST_QUOTES_TOKEN
+      else process.env.LIST_QUOTES_TOKEN = prev
+    }
+  })
+
+  it('GET /api/v1/backup returns 500 when snapshot fails', async () => {
+    const prev = process.env.LIST_QUOTES_TOKEN
+    process.env.LIST_QUOTES_TOKEN = 'backup-secret'
+    const failApp = await buildApp({
+      createSqliteBackup: () => {
+        throw new Error('forced backup failure')
+      },
+    })
+    await failApp.ready()
+    try {
+      const res = await failApp.inject({
+        method: 'GET',
+        url: '/api/v1/backup',
+        headers: { authorization: 'Bearer backup-secret' },
+      })
+      assert.strictEqual(res.statusCode, 500)
+      assert.deepStrictEqual(JSON.parse(res.body), {
+        error: 'forced backup failure',
+      })
+
+      const failApp2 = await buildApp({
+        createSqliteBackup: () => {
+          throw 'not-an-error'
+        },
+      })
+      await failApp2.ready()
+      try {
+        const res2 = await failApp2.inject({
+          method: 'GET',
+          url: '/api/v1/backup',
+          headers: { authorization: 'Bearer backup-secret' },
+        })
+        assert.strictEqual(res2.statusCode, 500)
+        assert.deepStrictEqual(JSON.parse(res2.body), {
+          error: 'Backup failed',
+        })
+      } finally {
+        await failApp2.close()
+      }
+    } finally {
+      await failApp.close()
+      if (prev === undefined) delete process.env.LIST_QUOTES_TOKEN
+      else process.env.LIST_QUOTES_TOKEN = prev
+    }
   })
 
   it('POST /api/v1/leads then GET list', async () => {

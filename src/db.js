@@ -1,5 +1,5 @@
 import { mkdirSync, readFileSync, renameSync, existsSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 
@@ -194,4 +194,24 @@ export function getSqlitePath() {
 
 export function getDataDir() {
   return dataDir()
+}
+
+/**
+ * Consistent on-disk snapshot via `VACUUM INTO` (after a WAL checkpoint).
+ * @param {string} [destPath] absolute path; default `DATA_DIR/estimator-backup-<iso>.sqlite`
+ * @returns {{ path: string, filename: string }}
+ */
+export function createSqliteBackup(destPath) {
+  const db = getDb()
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const filename = `estimator-backup-${stamp}.sqlite`
+  const target = destPath || join(dataDir(), filename)
+  mkdirSync(dirname(target), { recursive: true })
+  if (existsSync(target)) {
+    throw new Error(`Backup target already exists: ${target}`)
+  }
+  db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
+  const escaped = target.replaceAll("'", "''")
+  db.exec(`VACUUM INTO '${escaped}'`)
+  return { path: target, filename: basename(target) }
 }

@@ -87,3 +87,17 @@ Open **http://localhost:5174/?admin=1**, enter Bearer token `dev-token`, use **S
 curl http://localhost:3000/health
 curl http://localhost:3000/api/v1/stats
 ```
+
+## SQLite backup
+
+HTTP (token required — set in compose as `dev-token`):
+
+```bash
+curl -OJ -H "authorization: Bearer dev-token" http://localhost:3000/api/v1/backup
+```
+
+Offline (writes into `DATA_DIR`):
+
+```bash
+npm run backup
+```

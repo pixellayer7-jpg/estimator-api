@@ -7,7 +7,7 @@ Minimal **Node.js + Fastify** service for **PixelLayer** to **save** calculator 
 
 **Live frontends:** [Landing](https://pixellayer7-jpg.github.io/1/) · [Quote calculator](https://pixellayer7-jpg.github.io/project-estimator/) · [CRM admin](https://pixellayer7-jpg.github.io/project-estimator/?admin=1) (wire with `VITE_QUOTE_API_URL` / `VITE_LEAD_API_URL` + CORS when deployed).
 
-## What it does (v1.3.0)
+## What it does (v1.4.0)
 
 | Method  | Path                      | Auth                | Description                                                                                                                                                  |
 | ------- | ------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -15,6 +15,7 @@ Minimal **Node.js + Fastify** service for **PixelLayer** to **save** calculator 
 | `GET`   | `/health`                 | —                   | Liveness + storage writable check; includes `version`                                                                                                        |
 | `GET`   | `/api/v1/openapi.json`    | —                   | OpenAPI 3.0.3 with schemas, request/response examples, Bearer security (static copy: [`docs/openapi.json`](./docs/openapi.json))                             |
 | `GET`   | `/api/v1/stats`           | —                   | `{ totalQuotes, totalLeads, quotesByStatus, leadsByStatus, version }`                                                                                        |
+| `GET`   | `/api/v1/backup`          | Bearer **required** | Download SQLite snapshot (`application/vnd.sqlite3`). Always needs `LIST_QUOTES_TOKEN` (503 if unset). Offline: `npm run backup`                             |
 | `GET`   | `/api/v1/quotes?limit=20` | Bearer if token set | List recent quotes (newest first); items omit `summary`. `limit` 1–100, default 20                                                                           |
 | `POST`  | `/api/v1/quotes`          | —                   | Save quote snapshot (JSON Schema). Returns `{ id, createdAt, path, loadQuery, links }` with `links.calculator` / `links.contact`                             |
 | `GET`   | `/api/v1/quotes/:id`      | —                   | Load one saved quote (UUID). Public share link                                                                                                               |

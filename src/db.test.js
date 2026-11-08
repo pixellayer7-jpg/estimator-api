@@ -1,10 +1,17 @@
 import { describe, it, before, after } from 'node:test'
 import assert from 'node:assert'
+import { existsSync, readFileSync } from 'node:fs'
 import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { closeDb, getDataDir, getDb, getSqlitePath } from './db.js'
+import {
+  closeDb,
+  createSqliteBackup,
+  getDataDir,
+  getDb,
+  getSqlitePath,
+} from './db.js'
 import * as store from './store.js'
 
 const SAMPLE_QUOTE = {
@@ -72,6 +79,29 @@ describe('db', () => {
     getDb()
     closeDb()
     closeDb()
+  })
+
+  it('createSqliteBackup writes a VACUUM INTO snapshot', async () => {
+    getDb()
+    await store.appendQuote({
+      id: 'f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1',
+      createdAt: new Date().toISOString(),
+      projectType: 'landing',
+      addOnIds: [],
+      extraSections: '0',
+      min: 1,
+      max: 2,
+      lang: 'en',
+      status: 'draft',
+    })
+    const dest = join(dir, 'manual-backup.sqlite')
+    const { path, filename } = createSqliteBackup(dest)
+    assert.strictEqual(path, dest)
+    assert.strictEqual(filename, 'manual-backup.sqlite')
+    assert.ok(existsSync(dest))
+    const magic = readFileSync(dest).subarray(0, 15).toString('utf8')
+    assert.strictEqual(magic, 'SQLite format 3')
+    assert.throws(() => createSqliteBackup(dest), /already exists/)
   })
 
   it('rolls back a failed legacy import', async () => {
