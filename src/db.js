@@ -188,6 +188,13 @@ export function closeDb() {
   dbPath = null
 }
 
+/** Close SQLite and/or Postgres pool (tests + graceful shutdown). */
+export async function closeStorage() {
+  closeDb()
+  const { closePool } = await import('./pg.js')
+  await closePool()
+}
+
 export function getSqlitePath() {
   return sqlitePath()
 }

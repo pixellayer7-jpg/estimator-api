@@ -75,10 +75,12 @@ describe('db', () => {
     }
   })
 
-  it('closeDb is safe to call repeatedly', () => {
+  it('closeDb is safe to call repeatedly', async () => {
     getDb()
     closeDb()
     closeDb()
+    const { closeStorage } = await import('./db.js')
+    await closeStorage()
   })
 
   it('createSqliteBackup writes a VACUUM INTO snapshot', async () => {

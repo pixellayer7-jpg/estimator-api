@@ -6,6 +6,7 @@ import cors from '@fastify/cors'
 import rateLimit from '@fastify/rate-limit'
 import { randomUUID, timingSafeEqual } from 'node:crypto'
 import { createSqliteBackup } from './db.js'
+import { getStorageDriver, usePostgres } from './driver.js'
 import {
   appendQuote,
   findQuoteById,
@@ -202,7 +203,7 @@ export function buildOpenApiDocument(version) {
       title: 'PixelLayer estimator-api',
       version,
       description:
-        'SQLite-backed quote + lead CRM for PixelLayer. Public GET by quote UUID for share links; Bearer protects list/PATCH when LIST_QUOTES_TOKEN is set. GET /api/v1/backup always requires that token.',
+        'Quote + lead CRM for PixelLayer. Default storage is SQLite; set DATABASE_URL for PostgreSQL (multi-instance). Public GET by quote UUID; Bearer protects list/PATCH when LIST_QUOTES_TOKEN is set. GET /api/v1/backup is SQLite-only and always requires that token.',
       contact: {
         name: 'PixelLayer L.L.C',
         email: 'pixellayer7@gmail.com',
@@ -321,6 +322,15 @@ export function buildOpenApiDocument(version) {
             },
             503: {
               description: 'LIST_QUOTES_TOKEN not configured',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' },
+                },
+              },
+            },
+            501: {
+              description:
+                'DATABASE_URL set (Postgres) — use provider backup / pg_dump',
               content: {
                 'application/json': {
                   schema: { $ref: '#/components/schemas/Error' },
@@ -617,6 +627,12 @@ export default async function buildApp(options = {}) {
     },
     async (request, reply) => {
       if (!authorizeBackup(request, reply)) return
+      if (usePostgres()) {
+        return reply.code(501).send({
+          error:
+            'SQLite file backup is unavailable when DATABASE_URL (Postgres) is set; use your provider backup or pg_dump',
+        })
+      }
       let backupPath = null
       try {
         const { path, filename } = runBackup()
@@ -663,6 +679,7 @@ export default async function buildApp(options = {}) {
         service: 'estimator-api',
         version: pkg.version,
         storage: 'ready',
+        storageDriver: getStorageDriver(),
       }
     } catch (e) {
       return reply.code(503).send({
@@ -670,6 +687,7 @@ export default async function buildApp(options = {}) {
         service: 'estimator-api',
         version: pkg.version,
         storage: 'unavailable',
+        storageDriver: getStorageDriver(),
         error: e instanceof Error ? e.message : 'Storage check failed',
       })
     }

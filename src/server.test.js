@@ -49,7 +49,7 @@ describe('estimator-api', () => {
     const res = await app.inject({ method: 'GET', url: '/' })
     assert.strictEqual(res.statusCode, 200)
     assert.strictEqual(res.headers['x-content-type-options'], 'nosniff')
-    assert.strictEqual(res.headers['x-api-version'], '1.4.0')
+    assert.strictEqual(res.headers['x-api-version'], '2.0.0')
     const body = JSON.parse(res.body)
     assert.strictEqual(body.service, 'estimator-api')
     assert.ok(body.links?.landing)
@@ -64,7 +64,8 @@ describe('estimator-api', () => {
     const body = JSON.parse(res.body)
     assert.strictEqual(body.ok, true)
     assert.strictEqual(body.storage, 'ready')
-    assert.strictEqual(body.version, '1.4.0')
+    assert.strictEqual(body.version, '2.0.0')
+    assert.strictEqual(body.storageDriver, 'sqlite')
   })
 
   it('CORS preflight allows PATCH for CRM status updates', async () => {
@@ -427,7 +428,7 @@ describe('estimator-api', () => {
     assert.ok(typeof body.totalLeads === 'number')
     assert.ok(body.quotesByStatus)
     assert.ok(body.leadsByStatus)
-    assert.strictEqual(body.version, '1.4.0')
+    assert.strictEqual(body.version, '2.0.0')
   })
 
   it('GET /api/v1/backup requires token and returns a SQLite file', async () => {
@@ -465,6 +466,28 @@ describe('estimator-api', () => {
     } finally {
       if (prev === undefined) delete process.env.LIST_QUOTES_TOKEN
       else process.env.LIST_QUOTES_TOKEN = prev
+    }
+  })
+
+  it('GET /api/v1/backup returns 501 when Postgres is configured', async () => {
+    const prevUrl = process.env.DATABASE_URL
+    const prevToken = process.env.LIST_QUOTES_TOKEN
+    process.env.DATABASE_URL =
+      'postgres://estimator:estimator@127.0.0.1:5432/estimator'
+    process.env.LIST_QUOTES_TOKEN = 'backup-secret'
+    try {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/backup',
+        headers: { authorization: 'Bearer backup-secret' },
+      })
+      assert.strictEqual(res.statusCode, 501)
+      assert.match(JSON.parse(res.body).error, /Postgres|pg_dump|DATABASE_URL/)
+    } finally {
+      if (prevUrl === undefined) delete process.env.DATABASE_URL
+      else process.env.DATABASE_URL = prevUrl
+      if (prevToken === undefined) delete process.env.LIST_QUOTES_TOKEN
+      else process.env.LIST_QUOTES_TOKEN = prevToken
     }
   })
 

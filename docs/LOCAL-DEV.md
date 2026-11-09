@@ -18,6 +18,14 @@ docker compose up --build
 
 API listens on **http://localhost:3000** with persistent **SQLite** storage (`/var/data/estimator.sqlite` in the volume).
 
+Optional Postgres (profile):
+
+```bash
+docker compose --profile postgres up --build
+# SQLite API :3000 · Postgres API :3001 (DATABASE_URL to service db)
+npm run migrate   # against whatever DATABASE_URL / DATA_DIR your shell has
+```
+
 Environment (already in `docker-compose.yml`):
 
 | Variable            | Local value                                                                     |

@@ -20,3 +20,6 @@ services:
         sync: false
       - key: DATA_DIR
         value: /var/data
+      # Optional: set DATABASE_URL to a Render Postgres instance to leave SQLite
+      - key: DATABASE_URL
+        sync: false

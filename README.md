@@ -7,7 +7,7 @@ Minimal **Node.js + Fastify** service for **PixelLayer** to **save** calculator 
 
 **Live frontends:** [Landing](https://pixellayer7-jpg.github.io/1/) · [Quote calculator](https://pixellayer7-jpg.github.io/project-estimator/) · [CRM admin](https://pixellayer7-jpg.github.io/project-estimator/?admin=1) (wire with `VITE_QUOTE_API_URL` / `VITE_LEAD_API_URL` + CORS when deployed).
 
-## What it does (v1.4.0)
+## What it does (v2.0.0)
 
 | Method  | Path                      | Auth                | Description                                                                                                                                                  |
 | ------- | ------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -31,7 +31,11 @@ Minimal **Node.js + Fastify** service for **PixelLayer** to **save** calculator 
 
 **Leads:** `source` is `landing` \| `calculator` (default `landing`). Rate limits: quotes POST 30/min, leads POST 20/min (global 100/min).
 
-Storage is **SQLite** under `DATA_DIR` (`estimator.sqlite`, WAL mode, directory gitignored). On first boot, legacy `quotes.json` / `leads.json` are imported once and renamed to `*.migrated`. Good for demos and single-node deploys; use PostgreSQL when you need multi-instance writes and managed backups.
+**Storage (dual driver):**
+
+- **Default:** SQLite under `DATA_DIR` (`estimator.sqlite`, WAL). Legacy `quotes.json` / `leads.json` import once → `*.migrated`.
+- **Postgres:** set `DATABASE_URL` (e.g. `postgres://user:pass@host:5432/db`). Schema is applied on first connect / `npm run migrate`. Multi-instance safe.
+- **Backup:** `GET /api/v1/backup` is SQLite-only (501 on Postgres — use managed backups / `pg_dump`).
 
 Unknown paths return **`404`** `{ "error": "Not found" }`. Non-UUID `:id` → **400** `{ "error": "Invalid id" }`.
 
@@ -83,6 +87,8 @@ curl -s -X PATCH http://localhost:3000/api/v1/leads/<uuid> \
 | `HOST`                    | Bind address (default `0.0.0.0`)                                   |
 | `CORS_ORIGIN`             | Comma-separated allowed origins; empty = allow all (**dev only**)  |
 | `DATA_DIR`                | Override directory for `estimator.sqlite` (and legacy JSON import) |
+| `DATABASE_URL`            | When set, use PostgreSQL instead of SQLite                         |
+| `PG_POOL_MAX`             | Optional Postgres pool size (default `10`)                         |
 | `LIST_QUOTES_TOKEN`       | Optional bearer for list / PATCH / get-lead routes                 |
 | `FRONTEND_CALCULATOR_URL` | Base URL for `links.calculator` in POST quote responses            |
 | `FRONTEND_LANDING_URL`    | Base URL for `links.contact` (`?quote=<id>#contact`)               |
@@ -101,7 +107,14 @@ docker run -p 3000:3000 \
   pixelayer-estimator-api
 ```
 
-Compose (`docker compose up --build`) already mounts volume `estimator-data` → `/var/data` for the SQLite file.
+Compose (`docker compose up --build`) mounts volume `estimator-data` → `/var/data` for SQLite.
+
+Postgres profile (API on **:3001**):
+
+```bash
+docker compose --profile postgres up --build
+# API: http://localhost:3001  DATABASE_URL → service db
+```
 
 ### Render (one-click blueprint)
 

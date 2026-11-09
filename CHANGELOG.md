@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.0
+
+- Storage: optional **PostgreSQL** via `DATABASE_URL` (default remains SQLite under `DATA_DIR`)
+- Dual driver: same public HTTP API; `/health` includes `storageDriver: sqlite|postgres`
+- Migrate: `npm run migrate` applies idempotent schema for the active driver
+- Compose: `docker compose --profile postgres up` runs Postgres + `api-pg` on port 3001
+- Backup: `GET /api/v1/backup` returns **501** when Postgres is configured (use provider/`pg_dump`)
+- Dep: `pg` for the Postgres pool
+
 ## 1.4.0
 
 - Backup: `GET /api/v1/backup` downloads a consistent SQLite snapshot (`VACUUM INTO` after WAL checkpoint); always requires `LIST_QUOTES_TOKEN` (503 if unset)

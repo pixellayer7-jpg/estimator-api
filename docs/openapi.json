@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "PixelLayer estimator-api",
-    "version": "1.4.0",
-    "description": "SQLite-backed quote + lead CRM for PixelLayer. Public GET by quote UUID for share links; Bearer protects list/PATCH when LIST_QUOTES_TOKEN is set. GET /api/v1/backup always requires that token.",
+    "version": "2.0.0",
+    "description": "Quote + lead CRM for PixelLayer. Default storage is SQLite; set DATABASE_URL for PostgreSQL (multi-instance). Public GET by quote UUID; Bearer protects list/PATCH when LIST_QUOTES_TOKEN is set. GET /api/v1/backup is SQLite-only and always requires that token.",
     "contact": {
       "name": "PixelLayer L.L.C",
       "email": "pixellayer7@gmail.com",
@@ -338,7 +338,7 @@
             "qualified": 0,
             "closed": 0
           },
-          "version": "1.4.0"
+          "version": "2.0.0"
         }
       }
     }
@@ -412,6 +412,16 @@
           },
           "401": {
             "description": "Missing or wrong Bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "DATABASE_URL set (Postgres) — use provider backup / pg_dump",
             "content": {
               "application/json": {
                 "schema": {

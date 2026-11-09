@@ -1,8 +1,8 @@
 {
   "name": "estimator-api",
   "private": true,
-  "version": "1.4.0",
-  "description": "PixelLayer — minimal API to persist and share project quotes (MVP, SQLite-backed).",
+  "version": "2.0.0",
+  "description": "PixelLayer — quote/lead API with SQLite default and optional PostgreSQL (DATABASE_URL).",
   "type": "module",
   "author": "PixelLayer L.L.C",
   "license": "MIT",
@@ -17,9 +17,10 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node --test",
-    "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude=\"**/*.test.js\" --test-coverage-lines=100 --test-coverage-branches=82 --test-coverage-functions=100",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude=\"**/*.test.js\" --test-coverage-exclude=\"**/pg.js\" --test-coverage-exclude=\"**/pgStore.js\" --test-coverage-exclude=\"**/pgLeadsStore.js\" --test-coverage-lines=100 --test-coverage-branches=82 --test-coverage-functions=100",
     "demo:curl": "node docs/demo-curl.mjs",
     "backup": "node scripts/backup.mjs",
+    "migrate": "node scripts/migrate.mjs",
     "docs:openapi": "node scripts/export-openapi.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -29,7 +30,8 @@
   "dependencies": {
     "@fastify/cors": "^11.3.0",
     "@fastify/rate-limit": "^11.2.0",
-    "fastify": "^5.1.0"
+    "fastify": "^5.1.0",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

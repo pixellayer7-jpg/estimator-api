@@ -112,7 +112,8 @@ Expect `totalQuotes` / `totalLeads` increased; `quotesByStatus.sent` and `leadsB
 | --------------------------------------------- | -------------------------------------- |
 | Public `GET /quotes/:id` vs Bearer list/PATCH | Share links stay open; CRM stays gated |
 | JSON Schema + UUID validation                 | Invalid bodies → 400; bad ids → 400    |
-| SQLite + `GET /api/v1/backup` (Bearer)        | Durable demos; gated DB export         |
+| SQLite default / Postgres via `DATABASE_URL`  | Demo-local vs multi-instance ready     |
+| `GET /api/v1/backup` (Bearer, SQLite-only)    | Gated snapshot; 501 on Postgres        |
 | `links.calculator` / `links.contact`          | Frontend deep-links from API response  |
 
 Frontend walkthrough (no API): https://pixellayer7-jpg.github.io/1/#walkthrough  

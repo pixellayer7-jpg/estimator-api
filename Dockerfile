@@ -13,7 +13,7 @@ COPY src ./src
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
-# SQLite file: $DATA_DIR/estimator.sqlite (mount a volume for persistence)
+# Default SQLite: $DATA_DIR/estimator.sqlite — or set DATABASE_URL for Postgres
 ENV DATA_DIR=/var/data
 
 RUN mkdir -p /var/data && chown -R app:app /var/data /app

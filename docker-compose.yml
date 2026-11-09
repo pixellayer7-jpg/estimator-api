@@ -12,5 +12,38 @@ services:
       # Persists estimator.sqlite (and any *.migrated legacy JSON)
       - estimator-data:/var/data
 
+  # Optional multi-instance path: docker compose --profile postgres up --build
+  db:
+    profiles: ['postgres']
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: estimator
+      POSTGRES_PASSWORD: estimator
+      POSTGRES_DB: estimator
+    ports:
+      - '5432:5432'
+    volumes:
+      - estimator-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U estimator -d estimator']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api-pg:
+    profiles: ['postgres']
+    build: .
+    ports:
+      - '3001:3000'
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://estimator:estimator@db:5432/estimator
+      LIST_QUOTES_TOKEN: dev-token
+      CORS_ORIGIN: http://localhost:5173,http://localhost:5174,https://pixellayer7-jpg.github.io
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   estimator-data:
+  estimator-pg:
