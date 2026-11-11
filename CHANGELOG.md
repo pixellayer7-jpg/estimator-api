@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.0
+
+- E2E: Playwright API suite (`npm run test:e2e`) starts a real server and walks quote → lead → PATCH → stats → Bearer backup
+- CI: runs `test:e2e` after coverage (request-only, `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`)
+- Docs: README / LOCAL-DEV mention the CRM HTTP flow
+
 ## 2.0.0
 
 - Storage: optional **PostgreSQL** via `DATABASE_URL` (default remains SQLite under `DATA_DIR`)

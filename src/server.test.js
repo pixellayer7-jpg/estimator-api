@@ -49,7 +49,7 @@ describe('estimator-api', () => {
     const res = await app.inject({ method: 'GET', url: '/' })
     assert.strictEqual(res.statusCode, 200)
     assert.strictEqual(res.headers['x-content-type-options'], 'nosniff')
-    assert.strictEqual(res.headers['x-api-version'], '2.0.0')
+    assert.strictEqual(res.headers['x-api-version'], '2.1.0')
     const body = JSON.parse(res.body)
     assert.strictEqual(body.service, 'estimator-api')
     assert.ok(body.links?.landing)
@@ -64,7 +64,7 @@ describe('estimator-api', () => {
     const body = JSON.parse(res.body)
     assert.strictEqual(body.ok, true)
     assert.strictEqual(body.storage, 'ready')
-    assert.strictEqual(body.version, '2.0.0')
+    assert.strictEqual(body.version, '2.1.0')
     assert.strictEqual(body.storageDriver, 'sqlite')
   })
 
@@ -428,7 +428,7 @@ describe('estimator-api', () => {
     assert.ok(typeof body.totalLeads === 'number')
     assert.ok(body.quotesByStatus)
     assert.ok(body.leadsByStatus)
-    assert.strictEqual(body.version, '2.0.0')
+    assert.strictEqual(body.version, '2.1.0')
   })
 
   it('GET /api/v1/backup requires token and returns a SQLite file', async () => {

@@ -108,13 +108,14 @@ Expect `totalQuotes` / `totalLeads` increased; `quotesByStatus.sent` and `leadsB
 
 ## Talking points
 
-| Point                                         | Why it matters                         |
-| --------------------------------------------- | -------------------------------------- |
-| Public `GET /quotes/:id` vs Bearer list/PATCH | Share links stay open; CRM stays gated |
-| JSON Schema + UUID validation                 | Invalid bodies → 400; bad ids → 400    |
-| SQLite default / Postgres via `DATABASE_URL`  | Demo-local vs multi-instance ready     |
-| `GET /api/v1/backup` (Bearer, SQLite-only)    | Gated snapshot; 501 on Postgres        |
-| `links.calculator` / `links.contact`          | Frontend deep-links from API response  |
+| Point                                         | Why it matters                           |
+| --------------------------------------------- | ---------------------------------------- |
+| Public `GET /quotes/:id` vs Bearer list/PATCH | Share links stay open; CRM stays gated   |
+| JSON Schema + UUID validation                 | Invalid bodies → 400; bad ids → 400      |
+| SQLite default / Postgres via `DATABASE_URL`  | Demo-local vs multi-instance ready       |
+| `GET /api/v1/backup` (Bearer, SQLite-only)    | Gated snapshot; 501 on Postgres          |
+| `npm run test:e2e` (Playwright request)       | Real HTTP: quote → lead → PATCH → backup |
+| `links.calculator` / `links.contact`          | Frontend deep-links from API response    |
 
 Frontend walkthrough (no API): https://pixellayer7-jpg.github.io/1/#walkthrough  
 Interview one-pager: https://github.com/pixellayer7-jpg/pixellayer7-jpg/blob/main/INTERVIEW-DEMO.md

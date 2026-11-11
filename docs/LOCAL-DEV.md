@@ -96,6 +96,15 @@ curl http://localhost:3000/health
 curl http://localhost:3000/api/v1/stats
 ```
 
+## Playwright API e2e
+
+Spins up the API on port **3100** with a disposable `data-e2e/` SQLite dir, then hits real HTTP:
+
+```bash
+npm run test:e2e
+# health → POST quote → GET quote → POST lead → PATCH statuses → stats → Bearer backup
+```
+
 ## SQLite backup
 
 HTTP (token required — set in compose as `dev-token`):

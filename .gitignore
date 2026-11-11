@@ -1,5 +1,6 @@
 node_modules/
 data/
+data-e2e/
 .env
 .env.*
 !.env.example
@@ -9,3 +10,7 @@ Thumbs.db
 
 data-demo-walk/
 coverage.txt
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/

@@ -7,7 +7,7 @@ Minimal **Node.js + Fastify** service for **PixelLayer** to **save** calculator 
 
 **Live frontends:** [Landing](https://pixellayer7-jpg.github.io/1/) · [Quote calculator](https://pixellayer7-jpg.github.io/project-estimator/) · [CRM admin](https://pixellayer7-jpg.github.io/project-estimator/?admin=1) (wire with `VITE_QUOTE_API_URL` / `VITE_LEAD_API_URL` + CORS when deployed).
 
-## What it does (v2.0.0)
+## What it does (v2.1.0)
 
 | Method  | Path                      | Auth                | Description                                                                                                                                                  |
 | ------- | ------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -136,12 +136,13 @@ Use **Railway**, **Render**, **Fly.io**, etc.: HTTPS subdomain. Set `CORS_ORIGIN
 ```bash
 npm test              # node --test
 npm run test:coverage # same, with coverage gates (lines 100%, branches 82%, functions 100%)
+npm run test:e2e      # Playwright against a real server (quote → lead → PATCH → backup)
 npm run lint          # ESLint 10 flat config
 npm run format:check  # Prettier
 npm run check         # format:check + lint + test
 ```
 
-CI runs format, lint, and `test:coverage`; the coverage table is posted to the job summary, and a drop below the gates fails the build.
+CI runs format, lint, `test:coverage`, then `test:e2e`; the coverage table is posted to the job summary, and a drop below the gates fails the build.
 
 ## Interview: 5-minute curl walkthrough
 

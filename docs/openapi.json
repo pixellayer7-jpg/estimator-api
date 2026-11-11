@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "PixelLayer estimator-api",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "description": "Quote + lead CRM for PixelLayer. Default storage is SQLite; set DATABASE_URL for PostgreSQL (multi-instance). Public GET by quote UUID; Bearer protects list/PATCH when LIST_QUOTES_TOKEN is set. GET /api/v1/backup is SQLite-only and always requires that token.",
     "contact": {
       "name": "PixelLayer L.L.C",
@@ -338,7 +338,7 @@
             "qualified": 0,
             "closed": 0
           },
-          "version": "2.0.0"
+          "version": "2.1.0"
         }
       }
     }

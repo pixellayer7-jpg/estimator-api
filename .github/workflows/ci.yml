@@ -36,3 +36,8 @@ jobs:
             grep -E '^# .*\|' coverage.txt | sed 's/^# //'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+      # API e2e uses Playwright request only (no browser download).
+      - run: npm run test:e2e
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+          CI: 'true'

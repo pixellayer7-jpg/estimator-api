@@ -3,7 +3,16 @@ import eslintConfigPrettier from 'eslint-config-prettier'
 import globals from 'globals'
 
 export default [
-  { ignores: ['node_modules', 'coverage', 'data'] },
+  {
+    ignores: [
+      'node_modules',
+      'coverage',
+      'data',
+      'data-e2e',
+      'test-results',
+      'playwright-report',
+    ],
+  },
   js.configs.recommended,
   {
     files: ['**/*.{js,mjs}'],
