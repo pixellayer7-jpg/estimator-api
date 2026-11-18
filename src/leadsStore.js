@@ -23,8 +23,8 @@ export async function appendLead(record) {
   return impl().appendLead(record)
 }
 
-export async function listLeadsRecent(limit) {
-  return impl().listLeadsRecent(limit)
+export async function listLeadsRecent(limit, options) {
+  return impl().listLeadsRecent(limit, options)
 }
 
 export async function countLeads() {

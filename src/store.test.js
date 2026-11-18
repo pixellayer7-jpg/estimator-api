@@ -149,11 +149,83 @@ describe('store', () => {
     const after = await leadsStore.findLeadById(full.id)
     assert.strictEqual(after.status, 'new')
 
-    assert.ok((await leadsStore.listLeadsRecent(Number.NaN)).length >= 1)
-    assert.ok((await leadsStore.listLeadsRecent(0)).length >= 1)
-    assert.ok((await leadsStore.listLeadsRecent(1000)).length >= 1)
-    assert.ok((await store.listQuotesRecent(Number.NaN)).length >= 0)
+    assert.ok((await leadsStore.listLeadsRecent(Number.NaN)).items.length >= 1)
+    assert.ok((await leadsStore.listLeadsRecent(0)).items.length >= 1)
+    assert.ok((await leadsStore.listLeadsRecent(1000)).items.length >= 1)
+    assert.ok((await store.listQuotesRecent(Number.NaN)).items.length >= 0)
     assert.strictEqual(await leadsStore.findLeadById('no-such-lead'), null)
+  })
+
+  it('lists quotes and leads with status filter and offset', async () => {
+    await store.writeQuotes([
+      {
+        id: 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        projectType: 'landing',
+        addOnIds: [],
+        extraSections: '0',
+        min: 1,
+        max: 2,
+        status: 'draft',
+      },
+      {
+        id: 'a2a2a2a2-a2a2-4a2a-8a2a-a2a2a2a2a2a2',
+        createdAt: '2026-01-02T00:00:00.000Z',
+        projectType: 'website',
+        addOnIds: [],
+        extraSections: '0',
+        min: 3,
+        max: 4,
+        status: 'sent',
+      },
+      {
+        id: 'a3a3a3a3-a3a3-4a3a-8a3a-a3a3a3a3a3a3',
+        createdAt: '2026-01-03T00:00:00.000Z',
+        projectType: 'landing',
+        addOnIds: [],
+        extraSections: '0',
+        min: 5,
+        max: 6,
+        status: 'sent',
+      },
+    ])
+    const sent = await store.listQuotesRecent(10, { status: 'sent' })
+    assert.strictEqual(sent.total, 2)
+    assert.strictEqual(sent.items.length, 2)
+    assert.ok(sent.items.every((q) => q.status === 'sent'))
+
+    const page = await store.listQuotesRecent(1, {
+      status: 'sent',
+      offset: 1,
+    })
+    assert.strictEqual(page.total, 2)
+    assert.strictEqual(page.items.length, 1)
+    assert.strictEqual(page.offset, 1)
+    assert.strictEqual(page.items[0].id, 'a2a2a2a2-a2a2-4a2a-8a2a-a2a2a2a2a2a2')
+
+    await leadsStore.writeLeads([
+      {
+        id: 'b1b1b1b1-b1b1-4b1b-8b1b-b1b1b1b1b1b1',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        name: 'A',
+        email: 'a@example.com',
+        message: 'm',
+        status: 'new',
+      },
+      {
+        id: 'b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2',
+        createdAt: '2026-01-02T00:00:00.000Z',
+        name: 'B',
+        email: 'b@example.com',
+        message: 'm',
+        status: 'contacted',
+      },
+    ])
+    const contacted = await leadsStore.listLeadsRecent(10, {
+      status: 'contacted',
+    })
+    assert.strictEqual(contacted.total, 1)
+    assert.strictEqual(contacted.items[0].email, 'b@example.com')
   })
 
   it('updateLeadById returns null for a missing id', async () => {

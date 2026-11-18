@@ -106,18 +106,47 @@ export async function appendLead(record) {
   )
 }
 
-export async function listLeadsRecent(limit = 20) {
+export async function listLeadsRecent(limit = 20, options = {}) {
   const n = Math.min(100, Math.max(1, Math.floor(limit) || 20))
-  const { rows } = await pg.query(
-    `
-    SELECT id, created_at, name, email, source, status, quote_ref, project_type
-    FROM leads
-    ORDER BY created_at DESC, id DESC
-    LIMIT $1
-  `,
-    [n]
-  )
-  return rows.map((l) => ({
+  const offset = Math.max(0, Math.floor(Number(options.offset)) || 0)
+  const status =
+    typeof options.status === 'string' && options.status ? options.status : null
+
+  let total
+  let rows
+  if (status) {
+    const countRes = await pg.query(
+      'SELECT COUNT(*)::int AS n FROM leads WHERE status = $1',
+      [status]
+    )
+    total = countRes.rows[0].n
+    const listRes = await pg.query(
+      `
+      SELECT id, created_at, name, email, source, status, quote_ref, project_type
+      FROM leads
+      WHERE status = $1
+      ORDER BY created_at DESC, id DESC
+      LIMIT $2 OFFSET $3
+    `,
+      [status, n, offset]
+    )
+    rows = listRes.rows
+  } else {
+    const countRes = await pg.query('SELECT COUNT(*)::int AS n FROM leads')
+    total = countRes.rows[0].n
+    const listRes = await pg.query(
+      `
+      SELECT id, created_at, name, email, source, status, quote_ref, project_type
+      FROM leads
+      ORDER BY created_at DESC, id DESC
+      LIMIT $1 OFFSET $2
+    `,
+      [n, offset]
+    )
+    rows = listRes.rows
+  }
+
+  const items = rows.map((l) => ({
     id: l.id,
     createdAt:
       l.created_at instanceof Date ? l.created_at.toISOString() : l.created_at,
@@ -128,6 +157,7 @@ export async function listLeadsRecent(limit = 20) {
     quoteRef: l.quote_ref ?? null,
     projectType: l.project_type ?? null,
   }))
+  return { items, total, limit: n, offset }
 }
 
 export async function countLeads() {

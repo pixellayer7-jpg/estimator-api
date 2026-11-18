@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.0
+
+- Lists: `GET /api/v1/quotes` and `GET /api/v1/leads` support `offset` + `status` filter; response adds `total`, `limit`, `offset`, `status`
+- Invalid `status` → 400; SQLite and Postgres drivers both paginate/filter
+- OpenAPI + e2e cover the filtered list path
+
 ## 2.1.0
 
 - E2E: Playwright API suite (`npm run test:e2e`) starts a real server and walks quote → lead → PATCH → stats → Bearer backup

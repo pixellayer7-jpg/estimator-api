@@ -122,18 +122,47 @@ export async function findQuoteById(id) {
   return rowToQuote(rows[0])
 }
 
-export async function listQuotesRecent(limit = 20) {
+export async function listQuotesRecent(limit = 20, options = {}) {
   const n = Math.min(100, Math.max(1, Math.floor(limit) || 20))
-  const { rows } = await pg.query(
-    `
-    SELECT id, created_at, project_type, min, max, lang, status
-    FROM quotes
-    ORDER BY created_at DESC, id DESC
-    LIMIT $1
-  `,
-    [n]
-  )
-  return rows.map((row) => ({
+  const offset = Math.max(0, Math.floor(Number(options.offset)) || 0)
+  const status =
+    typeof options.status === 'string' && options.status ? options.status : null
+
+  let total
+  let rows
+  if (status) {
+    const countRes = await pg.query(
+      'SELECT COUNT(*)::int AS n FROM quotes WHERE status = $1',
+      [status]
+    )
+    total = countRes.rows[0].n
+    const listRes = await pg.query(
+      `
+      SELECT id, created_at, project_type, min, max, lang, status
+      FROM quotes
+      WHERE status = $1
+      ORDER BY created_at DESC, id DESC
+      LIMIT $2 OFFSET $3
+    `,
+      [status, n, offset]
+    )
+    rows = listRes.rows
+  } else {
+    const countRes = await pg.query('SELECT COUNT(*)::int AS n FROM quotes')
+    total = countRes.rows[0].n
+    const listRes = await pg.query(
+      `
+      SELECT id, created_at, project_type, min, max, lang, status
+      FROM quotes
+      ORDER BY created_at DESC, id DESC
+      LIMIT $1 OFFSET $2
+    `,
+      [n, offset]
+    )
+    rows = listRes.rows
+  }
+
+  const items = rows.map((row) => ({
     id: row.id,
     createdAt:
       row.created_at instanceof Date
@@ -145,6 +174,7 @@ export async function listQuotesRecent(limit = 20) {
     lang: row.lang,
     status: row.status || 'draft',
   }))
+  return { items, total, limit: n, offset }
 }
 
 export async function updateQuoteById(id, patch) {

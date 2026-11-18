@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import buildApp from './app.js'
 import { closeDb } from './db.js'
 import * as store from './store.js'
+import * as leadsStore from './leadsStore.js'
 
 describe('estimator-api', () => {
   let prevDir
@@ -49,7 +50,7 @@ describe('estimator-api', () => {
     const res = await app.inject({ method: 'GET', url: '/' })
     assert.strictEqual(res.statusCode, 200)
     assert.strictEqual(res.headers['x-content-type-options'], 'nosniff')
-    assert.strictEqual(res.headers['x-api-version'], '2.1.0')
+    assert.strictEqual(res.headers['x-api-version'], '2.2.0')
     const body = JSON.parse(res.body)
     assert.strictEqual(body.service, 'estimator-api')
     assert.ok(body.links?.landing)
@@ -64,7 +65,7 @@ describe('estimator-api', () => {
     const body = JSON.parse(res.body)
     assert.strictEqual(body.ok, true)
     assert.strictEqual(body.storage, 'ready')
-    assert.strictEqual(body.version, '2.1.0')
+    assert.strictEqual(body.version, '2.2.0')
     assert.strictEqual(body.storageDriver, 'sqlite')
   })
 
@@ -200,8 +201,90 @@ describe('estimator-api', () => {
     assert.strictEqual(list.statusCode, 200)
     const body = JSON.parse(list.body)
     assert.strictEqual(body.count, 1)
+    assert.strictEqual(body.total, 1)
+    assert.strictEqual(body.limit, 5)
+    assert.strictEqual(body.offset, 0)
+    assert.strictEqual(body.status, null)
     assert.strictEqual(body.items[0].id, id)
     assert.strictEqual(body.items[0].summary, undefined)
+  })
+
+  it('GET /api/v1/quotes and leads support status filter and offset', async () => {
+    await store.writeQuotes([])
+    await leadsStore.writeLeads([])
+    const mkQuote = async (status) => {
+      const post = await app.inject({
+        method: 'POST',
+        url: '/api/v1/quotes',
+        headers: { 'content-type': 'application/json' },
+        payload: JSON.stringify({
+          projectType: 'landing',
+          addOnIds: [],
+          extraSections: '0',
+          min: 1,
+          max: 2,
+          lang: 'en',
+        }),
+      })
+      const { id } = JSON.parse(post.body)
+      if (status !== 'draft') {
+        await app.inject({
+          method: 'PATCH',
+          url: `/api/v1/quotes/${id}`,
+          headers: { 'content-type': 'application/json' },
+          payload: JSON.stringify({ status }),
+        })
+      }
+      return id
+    }
+    await mkQuote('draft')
+    const sentA = await mkQuote('sent')
+    await mkQuote('sent')
+
+    const bad = await app.inject({ url: '/api/v1/quotes?status=nope' })
+    assert.strictEqual(bad.statusCode, 400)
+    const badLead = await app.inject({ url: '/api/v1/leads?status=nope' })
+    assert.strictEqual(badLead.statusCode, 400)
+
+    const filtered = await app.inject({
+      url: '/api/v1/quotes?status=sent&limit=1&offset=0',
+    })
+    assert.strictEqual(filtered.statusCode, 200)
+    const page = JSON.parse(filtered.body)
+    assert.strictEqual(page.total, 2)
+    assert.strictEqual(page.count, 1)
+    assert.strictEqual(page.status, 'sent')
+    assert.strictEqual(page.items[0].status, 'sent')
+
+    const page2 = await app.inject({
+      url: '/api/v1/quotes?status=sent&limit=1&offset=1',
+    })
+    assert.strictEqual(JSON.parse(page2.body).items[0].id, sentA)
+
+    const leadPost = await app.inject({
+      method: 'POST',
+      url: '/api/v1/leads',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        name: 'Filter',
+        email: 'filter@example.com',
+        message: 'hi',
+      }),
+    })
+    const leadId = JSON.parse(leadPost.body).id
+    await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/leads/${leadId}`,
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({ status: 'qualified' }),
+    })
+    const leads = await app.inject({
+      url: '/api/v1/leads?status=qualified&limit=10',
+    })
+    assert.strictEqual(leads.statusCode, 200)
+    const leadBody = JSON.parse(leads.body)
+    assert.ok(leadBody.total >= 1)
+    assert.ok(leadBody.items.every((l) => l.status === 'qualified'))
   })
 
   it('GET /api/v1/quotes requires bearer token when LIST_QUOTES_TOKEN is set', async () => {
@@ -428,7 +511,7 @@ describe('estimator-api', () => {
     assert.ok(typeof body.totalLeads === 'number')
     assert.ok(body.quotesByStatus)
     assert.ok(body.leadsByStatus)
-    assert.strictEqual(body.version, '2.1.0')
+    assert.strictEqual(body.version, '2.2.0')
   })
 
   it('GET /api/v1/backup requires token and returns a SQLite file', async () => {

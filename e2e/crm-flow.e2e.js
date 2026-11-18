@@ -90,7 +90,17 @@ test.describe('CRM API flow (real HTTP)', () => {
     expect(list.status()).toBe(200)
     const body = await list.json()
     expect(body.count).toBeGreaterThanOrEqual(1)
+    expect(body.total).toBeGreaterThanOrEqual(1)
     expect(body.items.some((i) => i.id === quoteId)).toBe(true)
+
+    const filtered = await request.get('/api/v1/quotes?status=sent&limit=20', {
+      headers: { Authorization: `Bearer ${E2E_TOKEN}` },
+    })
+    expect(filtered.status()).toBe(200)
+    const sentPage = await filtered.json()
+    expect(sentPage.status).toBe('sent')
+    expect(sentPage.items.every((i) => i.status === 'sent')).toBe(true)
+    expect(sentPage.items.some((i) => i.id === quoteId)).toBe(true)
 
     const stats = await request.get('/api/v1/stats')
     expect(stats.status()).toBe(200)

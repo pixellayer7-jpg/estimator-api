@@ -130,21 +130,51 @@ export async function findQuoteById(id) {
   return rowToQuote(row)
 }
 
-/** Newest first; `limit` clamped to 1–100. Returns summary-safe rows (no full `summary`). */
-export async function listQuotesRecent(limit = 20) {
+/**
+ * Newest first; `limit` clamped to 1–100.
+ * @param {number} [limit]
+ * @param {{ offset?: number, status?: string|null }} [options]
+ * @returns {Promise<{ items: object[], total: number, limit: number, offset: number }>}
+ */
+export async function listQuotesRecent(limit = 20, options = {}) {
   const db = getDb()
   const n = Math.min(100, Math.max(1, Math.floor(limit) || 20))
-  const rows = db
-    .prepare(
+  const offset = Math.max(0, Math.floor(Number(options.offset)) || 0)
+  const status =
+    typeof options.status === 'string' && options.status ? options.status : null
+
+  let total
+  let rows
+  if (status) {
+    total = db
+      .prepare('SELECT COUNT(*) AS n FROM quotes WHERE status = ?')
+      .get(status).n
+    rows = db
+      .prepare(
+        `
+        SELECT id, created_at, project_type, min, max, lang, status
+        FROM quotes
+        WHERE status = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT ? OFFSET ?
       `
-      SELECT id, created_at, project_type, min, max, lang, status
-      FROM quotes
-      ORDER BY created_at DESC, id DESC
-      LIMIT ?
-    `
-    )
-    .all(n)
-  return rows.map((row) => ({
+      )
+      .all(status, n, offset)
+  } else {
+    total = db.prepare('SELECT COUNT(*) AS n FROM quotes').get().n
+    rows = db
+      .prepare(
+        `
+        SELECT id, created_at, project_type, min, max, lang, status
+        FROM quotes
+        ORDER BY created_at DESC, id DESC
+        LIMIT ? OFFSET ?
+      `
+      )
+      .all(n, offset)
+  }
+
+  const items = rows.map((row) => ({
     id: row.id,
     createdAt: row.created_at,
     projectType: row.project_type,
@@ -153,6 +183,7 @@ export async function listQuotesRecent(limit = 20) {
     lang: row.lang,
     status: row.status || 'draft',
   }))
+  return { items, total, limit: n, offset }
 }
 
 export async function updateQuoteById(id, patch) {

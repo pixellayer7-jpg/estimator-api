@@ -27,8 +27,8 @@ export async function findQuoteById(id) {
   return impl().findQuoteById(id)
 }
 
-export async function listQuotesRecent(limit) {
-  return impl().listQuotesRecent(limit)
+export async function listQuotesRecent(limit, options) {
+  return impl().listQuotesRecent(limit, options)
 }
 
 export async function updateQuoteById(id, patch) {

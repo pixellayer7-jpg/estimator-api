@@ -134,6 +134,32 @@ function authorizeQuoteList(request, reply) {
   return false
 }
 
+/** @returns {{ limit: number, offset: number, status: string|null } | { error: string }} */
+function parseListQuery(query, allowedStatuses) {
+  let limit = 20
+  let offset = 0
+  let status = null
+  const rawLimit = query?.limit
+  if (rawLimit !== undefined && rawLimit !== '') {
+    const p = Number.parseInt(String(rawLimit), 10)
+    if (Number.isFinite(p)) limit = p
+  }
+  const rawOffset = query?.offset
+  if (rawOffset !== undefined && rawOffset !== '') {
+    const p = Number.parseInt(String(rawOffset), 10)
+    if (Number.isFinite(p) && p >= 0) offset = Math.floor(p)
+  }
+  const rawStatus = query?.status
+  if (rawStatus !== undefined && rawStatus !== '') {
+    const s = String(rawStatus)
+    if (!allowedStatuses.includes(s)) {
+      return { error: 'Invalid status' }
+    }
+    status = s
+  }
+  return { limit, offset, status }
+}
+
 /** Backup always requires a configured token (never open even in local-dev). */
 function authorizeBackup(request, reply) {
   const expected = String(process.env.LIST_QUOTES_TOKEN || '').trim()
@@ -363,6 +389,8 @@ export function buildOpenApiDocument(version) {
         get: {
           tags: ['Quotes'],
           summary: 'List recent quotes (optional Bearer)',
+          description:
+            'Newest first. Supports `limit`, `offset`, and optional `status` filter.',
           security: bearer,
           parameters: [
             {
@@ -375,9 +403,24 @@ export function buildOpenApiDocument(version) {
                 default: 20,
               },
             },
+            {
+              name: 'offset',
+              in: 'query',
+              schema: { type: 'integer', minimum: 0, default: 0 },
+            },
+            {
+              name: 'status',
+              in: 'query',
+              schema: { type: 'string', enum: QUOTE_STATUSES },
+              description: 'Filter by quote status',
+            },
           ],
           responses: {
-            200: { description: '{ count, items } — items omit summary' },
+            200: {
+              description:
+                '{ count, total, limit, offset, status, items } — items omit summary',
+            },
+            400: { description: 'Invalid status' },
             401: {
               description: 'Unauthorized when LIST_QUOTES_TOKEN is set',
               content: {
@@ -478,6 +521,8 @@ export function buildOpenApiDocument(version) {
         get: {
           tags: ['Leads'],
           summary: 'List recent leads (optional Bearer)',
+          description:
+            'Newest first. Supports `limit`, `offset`, and optional `status` filter.',
           security: bearer,
           parameters: [
             {
@@ -490,9 +535,23 @@ export function buildOpenApiDocument(version) {
                 default: 20,
               },
             },
+            {
+              name: 'offset',
+              in: 'query',
+              schema: { type: 'integer', minimum: 0, default: 0 },
+            },
+            {
+              name: 'status',
+              in: 'query',
+              schema: { type: 'string', enum: LEAD_STATUSES },
+              description: 'Filter by lead status',
+            },
           ],
           responses: {
-            200: { description: '{ count, items }' },
+            200: {
+              description: '{ count, total, limit, offset, status, items }',
+            },
+            400: { description: 'Invalid status' },
             401: { description: 'Unauthorized when token set' },
           },
         },
@@ -604,12 +663,12 @@ export default async function buildApp(options = {}) {
     },
     endpoints: {
       health: '/health',
-      listQuotes: 'GET /api/v1/quotes?limit=20',
+      listQuotes: 'GET /api/v1/quotes?limit=20&offset=0&status=',
       createQuote: 'POST /api/v1/quotes',
       getQuote: 'GET /api/v1/quotes/:id',
       patchQuote: 'PATCH /api/v1/quotes/:id',
       createLead: 'POST /api/v1/leads',
-      listLeads: 'GET /api/v1/leads?limit=20',
+      listLeads: 'GET /api/v1/leads?limit=20&offset=0&status=',
       getLead: 'GET /api/v1/leads/:id',
       patchLead: 'PATCH /api/v1/leads/:id',
       openapi: 'GET /api/v1/openapi.json',
@@ -695,14 +754,22 @@ export default async function buildApp(options = {}) {
 
   app.get('/api/v1/quotes', async (request, reply) => {
     if (!authorizeQuoteList(request, reply)) return
-    let limit = 20
-    const raw = request.query.limit
-    if (raw !== undefined && raw !== '') {
-      const p = Number.parseInt(String(raw), 10)
-      if (Number.isFinite(p)) limit = p
+    const parsed = parseListQuery(request.query, QUOTE_STATUSES)
+    if (parsed.error) {
+      return reply.code(400).send({ error: parsed.error })
     }
-    const items = await listQuotesRecent(limit)
-    return { count: items.length, items }
+    const page = await listQuotesRecent(parsed.limit, {
+      offset: parsed.offset,
+      status: parsed.status,
+    })
+    return {
+      count: page.items.length,
+      total: page.total,
+      limit: page.limit,
+      offset: page.offset,
+      status: parsed.status,
+      items: page.items,
+    }
   })
 
   app.post(
@@ -808,14 +875,22 @@ export default async function buildApp(options = {}) {
 
   app.get('/api/v1/leads', async (request, reply) => {
     if (!authorizeQuoteList(request, reply)) return
-    let limit = 20
-    const raw = request.query.limit
-    if (raw !== undefined && raw !== '') {
-      const p = Number.parseInt(String(raw), 10)
-      if (Number.isFinite(p)) limit = p
+    const parsed = parseListQuery(request.query, LEAD_STATUSES)
+    if (parsed.error) {
+      return reply.code(400).send({ error: parsed.error })
     }
-    const items = await listLeadsRecent(limit)
-    return { count: items.length, items }
+    const page = await listLeadsRecent(parsed.limit, {
+      offset: parsed.offset,
+      status: parsed.status,
+    })
+    return {
+      count: page.items.length,
+      total: page.total,
+      limit: page.limit,
+      offset: page.offset,
+      status: parsed.status,
+      items: page.items,
+    }
   })
 
   app.post(

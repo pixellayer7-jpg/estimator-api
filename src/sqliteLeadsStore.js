@@ -119,20 +119,50 @@ export async function appendLead(record) {
   })
 }
 
-export async function listLeadsRecent(limit = 20) {
+/**
+ * @param {number} [limit]
+ * @param {{ offset?: number, status?: string|null }} [options]
+ * @returns {Promise<{ items: object[], total: number, limit: number, offset: number }>}
+ */
+export async function listLeadsRecent(limit = 20, options = {}) {
   const db = getDb()
   const n = Math.min(100, Math.max(1, Math.floor(limit) || 20))
-  const rows = db
-    .prepare(
+  const offset = Math.max(0, Math.floor(Number(options.offset)) || 0)
+  const status =
+    typeof options.status === 'string' && options.status ? options.status : null
+
+  let total
+  let rows
+  if (status) {
+    total = db
+      .prepare('SELECT COUNT(*) AS n FROM leads WHERE status = ?')
+      .get(status).n
+    rows = db
+      .prepare(
+        `
+        SELECT id, created_at, name, email, source, status, quote_ref, project_type
+        FROM leads
+        WHERE status = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT ? OFFSET ?
       `
-      SELECT id, created_at, name, email, source, status, quote_ref, project_type
-      FROM leads
-      ORDER BY created_at DESC, id DESC
-      LIMIT ?
-    `
-    )
-    .all(n)
-  return rows.map((l) => ({
+      )
+      .all(status, n, offset)
+  } else {
+    total = db.prepare('SELECT COUNT(*) AS n FROM leads').get().n
+    rows = db
+      .prepare(
+        `
+        SELECT id, created_at, name, email, source, status, quote_ref, project_type
+        FROM leads
+        ORDER BY created_at DESC, id DESC
+        LIMIT ? OFFSET ?
+      `
+      )
+      .all(n, offset)
+  }
+
+  const items = rows.map((l) => ({
     id: l.id,
     createdAt: l.created_at,
     name: l.name,
@@ -142,6 +172,7 @@ export async function listLeadsRecent(limit = 20) {
     quoteRef: l.quote_ref ?? null,
     projectType: l.project_type ?? null,
   }))
+  return { items, total, limit: n, offset }
 }
 
 export async function countLeads() {

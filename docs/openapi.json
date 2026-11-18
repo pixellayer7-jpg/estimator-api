@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "PixelLayer estimator-api",
-    "version": "2.1.0",
+    "version": "2.2.0",
     "description": "Quote + lead CRM for PixelLayer. Default storage is SQLite; set DATABASE_URL for PostgreSQL (multi-instance). Public GET by quote UUID; Bearer protects list/PATCH when LIST_QUOTES_TOKEN is set. GET /api/v1/backup is SQLite-only and always requires that token.",
     "contact": {
       "name": "PixelLayer L.L.C",
@@ -338,7 +338,7 @@
             "qualified": 0,
             "closed": 0
           },
-          "version": "2.1.0"
+          "version": "2.2.0"
         }
       }
     }
@@ -474,6 +474,7 @@
           "Quotes"
         ],
         "summary": "List recent quotes (optional Bearer)",
+        "description": "Newest first. Supports `limit`, `offset`, and optional `status` filter.",
         "security": [
           {
             "bearerAuth": []
@@ -489,11 +490,37 @@
               "maximum": 100,
               "default": 20
             }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "sent",
+                "accepted",
+                "declined"
+              ]
+            },
+            "description": "Filter by quote status"
           }
         ],
         "responses": {
           "200": {
-            "description": "{ count, items } — items omit summary"
+            "description": "{ count, total, limit, offset, status, items } — items omit summary"
+          },
+          "400": {
+            "description": "Invalid status"
           },
           "401": {
             "description": "Unauthorized when LIST_QUOTES_TOKEN is set",
@@ -661,6 +688,7 @@
           "Leads"
         ],
         "summary": "List recent leads (optional Bearer)",
+        "description": "Newest first. Supports `limit`, `offset`, and optional `status` filter.",
         "security": [
           {
             "bearerAuth": []
@@ -676,11 +704,37 @@
               "maximum": 100,
               "default": 20
             }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "new",
+                "contacted",
+                "qualified",
+                "closed"
+              ]
+            },
+            "description": "Filter by lead status"
           }
         ],
         "responses": {
           "200": {
-            "description": "{ count, items }"
+            "description": "{ count, total, limit, offset, status, items }"
+          },
+          "400": {
+            "description": "Invalid status"
           },
           "401": {
             "description": "Unauthorized when token set"
