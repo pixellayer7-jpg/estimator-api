@@ -50,7 +50,7 @@ describe('estimator-api', () => {
     const res = await app.inject({ method: 'GET', url: '/' })
     assert.strictEqual(res.statusCode, 200)
     assert.strictEqual(res.headers['x-content-type-options'], 'nosniff')
-    assert.strictEqual(res.headers['x-api-version'], '2.2.0')
+    assert.strictEqual(res.headers['x-api-version'], '2.3.0')
     const body = JSON.parse(res.body)
     assert.strictEqual(body.service, 'estimator-api')
     assert.ok(body.links?.landing)
@@ -65,7 +65,7 @@ describe('estimator-api', () => {
     const body = JSON.parse(res.body)
     assert.strictEqual(body.ok, true)
     assert.strictEqual(body.storage, 'ready')
-    assert.strictEqual(body.version, '2.2.0')
+    assert.strictEqual(body.version, '2.3.0')
     assert.strictEqual(body.storageDriver, 'sqlite')
   })
 
@@ -511,14 +511,14 @@ describe('estimator-api', () => {
     assert.ok(typeof body.totalLeads === 'number')
     assert.ok(body.quotesByStatus)
     assert.ok(body.leadsByStatus)
-    assert.strictEqual(body.version, '2.2.0')
+    assert.strictEqual(body.version, '2.3.0')
   })
 
   it('GET /api/v1/backup requires token and returns a SQLite file', async () => {
     const unset = await app.inject({ method: 'GET', url: '/api/v1/backup' })
     assert.strictEqual(unset.statusCode, 503)
     assert.deepStrictEqual(JSON.parse(unset.body), {
-      error: 'Backup requires LIST_QUOTES_TOKEN to be configured',
+      error: 'Backup requires LIST_QUOTES_TOKEN or API_TOKENS to be configured',
     })
 
     const prev = process.env.LIST_QUOTES_TOKEN
@@ -841,6 +841,113 @@ describe('estimator-api', () => {
     } finally {
       if (prev === undefined) delete process.env.LIST_QUOTES_TOKEN
       else process.env.LIST_QUOTES_TOKEN = prev
+    }
+  })
+
+  it('GET /api/v1/me reports open auth when no tokens configured', async () => {
+    const prevList = process.env.LIST_QUOTES_TOKEN
+    const prevApi = process.env.API_TOKENS
+    delete process.env.LIST_QUOTES_TOKEN
+    delete process.env.API_TOKENS
+    try {
+      const res = await app.inject({ url: '/api/v1/me' })
+      assert.strictEqual(res.statusCode, 200)
+      const body = JSON.parse(res.body)
+      assert.strictEqual(body.auth, 'open')
+      assert.strictEqual(body.role, null)
+      assert.strictEqual(body.permissions.list, true)
+      assert.strictEqual(body.permissions.write, true)
+      assert.strictEqual(body.permissions.backup, false)
+    } finally {
+      if (prevList === undefined) delete process.env.LIST_QUOTES_TOKEN
+      else process.env.LIST_QUOTES_TOKEN = prevList
+      if (prevApi === undefined) delete process.env.API_TOKENS
+      else process.env.API_TOKENS = prevApi
+    }
+  })
+
+  it('API_TOKENS roles gate write and backup; /me reports role', async () => {
+    const prevList = process.env.LIST_QUOTES_TOKEN
+    const prevApi = process.env.API_TOKENS
+    delete process.env.LIST_QUOTES_TOKEN
+    process.env.API_TOKENS = 'admin:ad-secret,crm:crm-secret,readonly:ro-secret'
+    // Fresh app so backup rate-limit budget is independent of earlier tests.
+    const roleApp = await buildApp()
+    await roleApp.ready()
+    try {
+      const openMe = await roleApp.inject({ url: '/api/v1/me' })
+      assert.strictEqual(openMe.statusCode, 401)
+
+      const me = await roleApp.inject({
+        url: '/api/v1/me',
+        headers: { authorization: 'Bearer crm-secret' },
+      })
+      assert.strictEqual(me.statusCode, 200)
+      const meBody = JSON.parse(me.body)
+      assert.strictEqual(meBody.role, 'crm')
+      assert.strictEqual(meBody.permissions.write, true)
+      assert.strictEqual(meBody.permissions.backup, false)
+
+      const list = await roleApp.inject({
+        url: '/api/v1/quotes?limit=1',
+        headers: { authorization: 'Bearer ro-secret' },
+      })
+      assert.strictEqual(list.statusCode, 200)
+
+      const post = await roleApp.inject({
+        method: 'POST',
+        url: '/api/v1/quotes',
+        headers: { 'content-type': 'application/json' },
+        payload: JSON.stringify({
+          projectType: 'landing',
+          addOnIds: [],
+          extraSections: '0',
+          min: 1,
+          max: 2,
+          lang: 'en',
+        }),
+      })
+      const { id } = JSON.parse(post.body)
+
+      const forbiddenPatch = await roleApp.inject({
+        method: 'PATCH',
+        url: `/api/v1/quotes/${id}`,
+        headers: {
+          'content-type': 'application/json',
+          authorization: 'Bearer ro-secret',
+        },
+        payload: JSON.stringify({ status: 'sent' }),
+      })
+      assert.strictEqual(forbiddenPatch.statusCode, 403)
+
+      const okPatch = await roleApp.inject({
+        method: 'PATCH',
+        url: `/api/v1/quotes/${id}`,
+        headers: {
+          'content-type': 'application/json',
+          authorization: 'Bearer crm-secret',
+        },
+        payload: JSON.stringify({ status: 'sent' }),
+      })
+      assert.strictEqual(okPatch.statusCode, 200)
+
+      const forbiddenBackup = await roleApp.inject({
+        url: '/api/v1/backup',
+        headers: { authorization: 'Bearer crm-secret' },
+      })
+      assert.strictEqual(forbiddenBackup.statusCode, 403)
+
+      const okBackup = await roleApp.inject({
+        url: '/api/v1/backup',
+        headers: { authorization: 'Bearer ad-secret' },
+      })
+      assert.strictEqual(okBackup.statusCode, 200)
+    } finally {
+      await roleApp.close()
+      if (prevList === undefined) delete process.env.LIST_QUOTES_TOKEN
+      else process.env.LIST_QUOTES_TOKEN = prevList
+      if (prevApi === undefined) delete process.env.API_TOKENS
+      else process.env.API_TOKENS = prevApi
     }
   })
 })

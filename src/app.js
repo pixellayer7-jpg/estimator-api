@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url'
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import rateLimit from '@fastify/rate-limit'
-import { randomUUID, timingSafeEqual } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
+import { authConfigured, authenticate, authorize } from './auth.js'
 import { createSqliteBackup } from './db.js'
 import { getStorageDriver, usePostgres } from './driver.js'
 import {
@@ -95,12 +96,6 @@ const pkg = JSON.parse(
   readFileSync(join(__dirname, '..', 'package.json'), 'utf8')
 )
 
-function safeTokenEquals(a, b) {
-  const aa = Buffer.from(a)
-  const bb = Buffer.from(b)
-  return aa.length === bb.length && timingSafeEqual(aa, bb)
-}
-
 function buildQuoteShareLinks(id) {
   const calc = (
     process.env.FRONTEND_CALCULATOR_URL ||
@@ -113,25 +108,6 @@ function buildQuoteShareLinks(id) {
     calculator: `${calc}?load=${encodeURIComponent(id)}`,
     contact: `${landing}?quote=${encodeURIComponent(id)}#contact`,
   }
-}
-
-function getBearerToken(request) {
-  const header = request.headers.authorization
-  if (typeof header !== 'string') return ''
-  const match = header.match(/^Bearer\s+(.+)$/i)
-  return match ? match[1].trim() : ''
-}
-
-function authorizeQuoteList(request, reply) {
-  const expected = String(process.env.LIST_QUOTES_TOKEN || '').trim()
-  if (!expected) return true
-  const provided = getBearerToken(request)
-  if (provided && safeTokenEquals(provided, expected)) return true
-  reply
-    .header('WWW-Authenticate', 'Bearer')
-    .code(401)
-    .send({ error: 'Unauthorized' })
-  return false
 }
 
 /** @returns {{ limit: number, offset: number, status: string|null } | { error: string }} */
@@ -158,24 +134,6 @@ function parseListQuery(query, allowedStatuses) {
     status = s
   }
   return { limit, offset, status }
-}
-
-/** Backup always requires a configured token (never open even in local-dev). */
-function authorizeBackup(request, reply) {
-  const expected = String(process.env.LIST_QUOTES_TOKEN || '').trim()
-  if (!expected) {
-    reply.code(503).send({
-      error: 'Backup requires LIST_QUOTES_TOKEN to be configured',
-    })
-    return false
-  }
-  const provided = getBearerToken(request)
-  if (provided && safeTokenEquals(provided, expected)) return true
-  reply
-    .header('WWW-Authenticate', 'Bearer')
-    .code(401)
-    .send({ error: 'Unauthorized' })
-  return false
 }
 
 export function buildOpenApiDocument(version) {
@@ -229,7 +187,7 @@ export function buildOpenApiDocument(version) {
       title: 'PixelLayer estimator-api',
       version,
       description:
-        'Quote + lead CRM for PixelLayer. Default storage is SQLite; set DATABASE_URL for PostgreSQL (multi-instance). Public GET by quote UUID; Bearer protects list/PATCH when LIST_QUOTES_TOKEN is set. GET /api/v1/backup is SQLite-only and always requires that token.',
+        'Quote + lead CRM for PixelLayer. Default storage is SQLite; set DATABASE_URL for PostgreSQL. Public GET by quote UUID. Bearer auth via LIST_QUOTES_TOKEN (admin) and/or API_TOKENS (admin|crm|readonly). Backup is SQLite-only and admin-only.',
       contact: {
         name: 'PixelLayer L.L.C',
         email: 'pixellayer7@gmail.com',
@@ -256,7 +214,7 @@ export function buildOpenApiDocument(version) {
           scheme: 'bearer',
           bearerFormat: 'opaque',
           description:
-            'Same value as LIST_QUOTES_TOKEN. Required for list/PATCH (and GET lead) when the env var is set; always required for GET /api/v1/backup.',
+            'Token from LIST_QUOTES_TOKEN (admin) or API_TOKENS. Roles: admin (list+write+backup), crm (list+write), readonly (list).',
         },
       },
       schemas: {
@@ -327,7 +285,7 @@ export function buildOpenApiDocument(version) {
           tags: ['Backup'],
           summary: 'Download a SQLite snapshot (VACUUM INTO)',
           description:
-            'Always requires LIST_QUOTES_TOKEN. Returns application/vnd.sqlite3 after a WAL checkpoint.',
+            'Requires admin role (LIST_QUOTES_TOKEN or API_TOKENS admin). Returns application/vnd.sqlite3 after a WAL checkpoint.',
           security: bearer,
           responses: {
             200: {
@@ -346,8 +304,17 @@ export function buildOpenApiDocument(version) {
                 },
               },
             },
+            403: {
+              description:
+                'Authenticated but role cannot backup (crm/readonly)',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' },
+                },
+              },
+            },
             503: {
-              description: 'LIST_QUOTES_TOKEN not configured',
+              description: 'No tokens configured',
               content: {
                 'application/json': {
                   schema: { $ref: '#/components/schemas/Error' },
@@ -363,6 +330,20 @@ export function buildOpenApiDocument(version) {
                 },
               },
             },
+          },
+        },
+      },
+      '/api/v1/me': {
+        get: {
+          tags: ['System'],
+          summary: 'Current auth role and permissions',
+          security: bearer,
+          responses: {
+            200: {
+              description:
+                '{ auth, role, permissions } — auth=open when no tokens configured',
+            },
+            401: { description: 'Bearer required when tokens are configured' },
           },
         },
       },
@@ -673,11 +654,34 @@ export default async function buildApp(options = {}) {
       patchLead: 'PATCH /api/v1/leads/:id',
       openapi: 'GET /api/v1/openapi.json',
       stats: 'GET /api/v1/stats',
+      me: 'GET /api/v1/me',
       backup: 'GET /api/v1/backup',
     },
   }))
 
   app.get('/api/v1/openapi.json', async () => buildOpenApiDocument(pkg.version))
+
+  app.get('/api/v1/me', async (request, reply) => {
+    if (!authConfigured()) {
+      return {
+        auth: 'open',
+        role: null,
+        permissions: { list: true, write: true, backup: false },
+      }
+    }
+    const principal = authenticate(request)
+    if (!principal) {
+      return reply
+        .header('WWW-Authenticate', 'Bearer')
+        .code(401)
+        .send({ error: 'Unauthorized' })
+    }
+    return {
+      auth: 'bearer',
+      role: principal.role,
+      permissions: principal.permissions,
+    }
+  })
 
   app.get(
     '/api/v1/backup',
@@ -685,7 +689,7 @@ export default async function buildApp(options = {}) {
       config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
     },
     async (request, reply) => {
-      if (!authorizeBackup(request, reply)) return
+      if (!authorize(request, reply, 'backup')) return
       if (usePostgres()) {
         return reply.code(501).send({
           error:
@@ -753,7 +757,7 @@ export default async function buildApp(options = {}) {
   })
 
   app.get('/api/v1/quotes', async (request, reply) => {
-    if (!authorizeQuoteList(request, reply)) return
+    if (!authorize(request, reply, 'list')) return
     const parsed = parseListQuery(request.query, QUOTE_STATUSES)
     if (parsed.error) {
       return reply.code(400).send({ error: parsed.error })
@@ -861,7 +865,7 @@ export default async function buildApp(options = {}) {
     '/api/v1/quotes/:id',
     { schema: { body: patchQuoteBodySchema } },
     async (request, reply) => {
-      if (!authorizeQuoteList(request, reply)) return
+      if (!authorize(request, reply, 'write')) return
       const { id } = request.params
       if (!UUID_PARAM.test(id)) {
         return reply.code(400).send({ error: 'Invalid id' })
@@ -874,7 +878,7 @@ export default async function buildApp(options = {}) {
   )
 
   app.get('/api/v1/leads', async (request, reply) => {
-    if (!authorizeQuoteList(request, reply)) return
+    if (!authorize(request, reply, 'list')) return
     const parsed = parseListQuery(request.query, LEAD_STATUSES)
     if (parsed.error) {
       return reply.code(400).send({ error: parsed.error })
@@ -947,7 +951,7 @@ export default async function buildApp(options = {}) {
   )
 
   app.get('/api/v1/leads/:id', async (request, reply) => {
-    if (!authorizeQuoteList(request, reply)) return
+    if (!authorize(request, reply, 'list')) return
     const { id } = request.params
     if (!UUID_PARAM.test(id)) {
       return reply.code(400).send({ error: 'Invalid id' })
@@ -961,7 +965,7 @@ export default async function buildApp(options = {}) {
     '/api/v1/leads/:id',
     { schema: { body: patchLeadBodySchema } },
     async (request, reply) => {
-      if (!authorizeQuoteList(request, reply)) return
+      if (!authorize(request, reply, 'write')) return
       const { id } = request.params
       if (!UUID_PARAM.test(id)) {
         return reply.code(400).send({ error: 'Invalid id' })

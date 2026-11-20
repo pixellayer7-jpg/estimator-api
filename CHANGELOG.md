@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.3.0
+
+- Auth: multi-token roles via `API_TOKENS` (`admin` / `crm` / `readonly`); `LIST_QUOTES_TOKEN` remains admin
+- Permissions: list (all roles), write/PATCH (admin+crm), backup (admin only) — wrong role → **403**
+- `GET /api/v1/me` reports `{ auth, role, permissions }` (open mode when no tokens configured)
+- OpenAPI + unit/integration tests cover role gates
+
 ## 2.2.0
 
 - Lists: `GET /api/v1/quotes` and `GET /api/v1/leads` support `offset` + `status` filter; response adds `total`, `limit`, `offset`, `status`

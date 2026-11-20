@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "PixelLayer estimator-api",
-    "version": "2.2.0",
-    "description": "Quote + lead CRM for PixelLayer. Default storage is SQLite; set DATABASE_URL for PostgreSQL (multi-instance). Public GET by quote UUID; Bearer protects list/PATCH when LIST_QUOTES_TOKEN is set. GET /api/v1/backup is SQLite-only and always requires that token.",
+    "version": "2.3.0",
+    "description": "Quote + lead CRM for PixelLayer. Default storage is SQLite; set DATABASE_URL for PostgreSQL. Public GET by quote UUID. Bearer auth via LIST_QUOTES_TOKEN (admin) and/or API_TOKENS (admin|crm|readonly). Backup is SQLite-only and admin-only.",
     "contact": {
       "name": "PixelLayer L.L.C",
       "email": "pixellayer7@gmail.com",
@@ -40,7 +40,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "opaque",
-        "description": "Same value as LIST_QUOTES_TOKEN. Required for list/PATCH (and GET lead) when the env var is set; always required for GET /api/v1/backup."
+        "description": "Token from LIST_QUOTES_TOKEN (admin) or API_TOKENS. Roles: admin (list+write+backup), crm (list+write), readonly (list)."
       }
     },
     "schemas": {
@@ -338,7 +338,7 @@
             "qualified": 0,
             "closed": 0
           },
-          "version": "2.2.0"
+          "version": "2.3.0"
         }
       }
     }
@@ -392,7 +392,7 @@
           "Backup"
         ],
         "summary": "Download a SQLite snapshot (VACUUM INTO)",
-        "description": "Always requires LIST_QUOTES_TOKEN. Returns application/vnd.sqlite3 after a WAL checkpoint.",
+        "description": "Requires admin role (LIST_QUOTES_TOKEN or API_TOKENS admin). Returns application/vnd.sqlite3 after a WAL checkpoint.",
         "security": [
           {
             "bearerAuth": []
@@ -420,6 +420,16 @@
               }
             }
           },
+          "403": {
+            "description": "Authenticated but role cannot backup (crm/readonly)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "501": {
             "description": "DATABASE_URL set (Postgres) — use provider backup / pg_dump",
             "content": {
@@ -431,7 +441,7 @@
             }
           },
           "503": {
-            "description": "LIST_QUOTES_TOKEN not configured",
+            "description": "No tokens configured",
             "content": {
               "application/json": {
                 "schema": {
@@ -439,6 +449,27 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Current auth role and permissions",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ auth, role, permissions } — auth=open when no tokens configured"
+          },
+          "401": {
+            "description": "Bearer required when tokens are configured"
           }
         }
       }
