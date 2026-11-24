@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.4.0
+
+- Lists: `GET /api/v1/quotes` and `GET /api/v1/leads` support `q` search (quotes: quoteRef/id; leads: name/email/quoteRef)
+- Response includes `q`; quote list items now include `quoteRef`
+- OpenAPI + unit/store/e2e cover the search path (SQLite + Postgres drivers)
+
 ## 2.3.0
 
 - Auth: multi-token roles via `API_TOKENS` (`admin` / `crm` / `readonly`); `LIST_QUOTES_TOKEN` remains admin

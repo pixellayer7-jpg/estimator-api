@@ -110,11 +110,14 @@ function buildQuoteShareLinks(id) {
   }
 }
 
-/** @returns {{ limit: number, offset: number, status: string|null } | { error: string }} */
+/**
+ * @returns {{ limit: number, offset: number, status: string|null, q: string|null } | { error: string }}
+ */
 function parseListQuery(query, allowedStatuses) {
   let limit = 20
   let offset = 0
   let status = null
+  let q = null
   const rawLimit = query?.limit
   if (rawLimit !== undefined && rawLimit !== '') {
     const p = Number.parseInt(String(rawLimit), 10)
@@ -133,7 +136,11 @@ function parseListQuery(query, allowedStatuses) {
     }
     status = s
   }
-  return { limit, offset, status }
+  const rawQ = query?.q
+  if (rawQ !== undefined && rawQ !== null && String(rawQ).trim() !== '') {
+    q = String(rawQ).trim().slice(0, 100)
+  }
+  return { limit, offset, status, q }
 }
 
 export function buildOpenApiDocument(version) {
@@ -371,7 +378,7 @@ export function buildOpenApiDocument(version) {
           tags: ['Quotes'],
           summary: 'List recent quotes (optional Bearer)',
           description:
-            'Newest first. Supports `limit`, `offset`, and optional `status` filter.',
+            'Newest first. Supports `limit`, `offset`, optional `status`, and `q` (matches quoteRef or id).',
           security: bearer,
           parameters: [
             {
@@ -395,11 +402,17 @@ export function buildOpenApiDocument(version) {
               schema: { type: 'string', enum: QUOTE_STATUSES },
               description: 'Filter by quote status',
             },
+            {
+              name: 'q',
+              in: 'query',
+              schema: { type: 'string', maxLength: 100 },
+              description: 'Case-insensitive search on quoteRef or id',
+            },
           ],
           responses: {
             200: {
               description:
-                '{ count, total, limit, offset, status, items } — items omit summary',
+                '{ count, total, limit, offset, status, q, items } — items omit summary',
             },
             400: { description: 'Invalid status' },
             401: {
@@ -503,7 +516,7 @@ export function buildOpenApiDocument(version) {
           tags: ['Leads'],
           summary: 'List recent leads (optional Bearer)',
           description:
-            'Newest first. Supports `limit`, `offset`, and optional `status` filter.',
+            'Newest first. Supports `limit`, `offset`, optional `status`, and `q` (name, email, or quoteRef).',
           security: bearer,
           parameters: [
             {
@@ -527,10 +540,17 @@ export function buildOpenApiDocument(version) {
               schema: { type: 'string', enum: LEAD_STATUSES },
               description: 'Filter by lead status',
             },
+            {
+              name: 'q',
+              in: 'query',
+              schema: { type: 'string', maxLength: 100 },
+              description:
+                'Case-insensitive search on name, email, or quoteRef',
+            },
           ],
           responses: {
             200: {
-              description: '{ count, total, limit, offset, status, items }',
+              description: '{ count, total, limit, offset, status, q, items }',
             },
             400: { description: 'Invalid status' },
             401: { description: 'Unauthorized when token set' },
@@ -644,12 +664,12 @@ export default async function buildApp(options = {}) {
     },
     endpoints: {
       health: '/health',
-      listQuotes: 'GET /api/v1/quotes?limit=20&offset=0&status=',
+      listQuotes: 'GET /api/v1/quotes?limit=20&offset=0&status=&q=',
       createQuote: 'POST /api/v1/quotes',
       getQuote: 'GET /api/v1/quotes/:id',
       patchQuote: 'PATCH /api/v1/quotes/:id',
       createLead: 'POST /api/v1/leads',
-      listLeads: 'GET /api/v1/leads?limit=20&offset=0&status=',
+      listLeads: 'GET /api/v1/leads?limit=20&offset=0&status=&q=',
       getLead: 'GET /api/v1/leads/:id',
       patchLead: 'PATCH /api/v1/leads/:id',
       openapi: 'GET /api/v1/openapi.json',
@@ -765,6 +785,7 @@ export default async function buildApp(options = {}) {
     const page = await listQuotesRecent(parsed.limit, {
       offset: parsed.offset,
       status: parsed.status,
+      q: parsed.q,
     })
     return {
       count: page.items.length,
@@ -772,6 +793,7 @@ export default async function buildApp(options = {}) {
       limit: page.limit,
       offset: page.offset,
       status: parsed.status,
+      q: parsed.q,
       items: page.items,
     }
   })
@@ -886,6 +908,7 @@ export default async function buildApp(options = {}) {
     const page = await listLeadsRecent(parsed.limit, {
       offset: parsed.offset,
       status: parsed.status,
+      q: parsed.q,
     })
     return {
       count: page.items.length,
@@ -893,6 +916,7 @@ export default async function buildApp(options = {}) {
       limit: page.limit,
       offset: page.offset,
       status: parsed.status,
+      q: parsed.q,
       items: page.items,
     }
   })

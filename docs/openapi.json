@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "PixelLayer estimator-api",
-    "version": "2.3.0",
+    "version": "2.4.0",
     "description": "Quote + lead CRM for PixelLayer. Default storage is SQLite; set DATABASE_URL for PostgreSQL. Public GET by quote UUID. Bearer auth via LIST_QUOTES_TOKEN (admin) and/or API_TOKENS (admin|crm|readonly). Backup is SQLite-only and admin-only.",
     "contact": {
       "name": "PixelLayer L.L.C",
@@ -338,7 +338,7 @@
             "qualified": 0,
             "closed": 0
           },
-          "version": "2.3.0"
+          "version": "2.4.0"
         }
       }
     }
@@ -505,7 +505,7 @@
           "Quotes"
         ],
         "summary": "List recent quotes (optional Bearer)",
-        "description": "Newest first. Supports `limit`, `offset`, and optional `status` filter.",
+        "description": "Newest first. Supports `limit`, `offset`, optional `status`, and `q` (matches quoteRef or id).",
         "security": [
           {
             "bearerAuth": []
@@ -544,11 +544,20 @@
               ]
             },
             "description": "Filter by quote status"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Case-insensitive search on quoteRef or id"
           }
         ],
         "responses": {
           "200": {
-            "description": "{ count, total, limit, offset, status, items } — items omit summary"
+            "description": "{ count, total, limit, offset, status, q, items } — items omit summary"
           },
           "400": {
             "description": "Invalid status"
@@ -719,7 +728,7 @@
           "Leads"
         ],
         "summary": "List recent leads (optional Bearer)",
-        "description": "Newest first. Supports `limit`, `offset`, and optional `status` filter.",
+        "description": "Newest first. Supports `limit`, `offset`, optional `status`, and `q` (name, email, or quoteRef).",
         "security": [
           {
             "bearerAuth": []
@@ -758,11 +767,20 @@
               ]
             },
             "description": "Filter by lead status"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Case-insensitive search on name, email, or quoteRef"
           }
         ],
         "responses": {
           "200": {
-            "description": "{ count, total, limit, offset, status, items }"
+            "description": "{ count, total, limit, offset, status, q, items }"
           },
           "400": {
             "description": "Invalid status"

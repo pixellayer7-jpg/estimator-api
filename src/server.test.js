@@ -50,7 +50,7 @@ describe('estimator-api', () => {
     const res = await app.inject({ method: 'GET', url: '/' })
     assert.strictEqual(res.statusCode, 200)
     assert.strictEqual(res.headers['x-content-type-options'], 'nosniff')
-    assert.strictEqual(res.headers['x-api-version'], '2.3.0')
+    assert.strictEqual(res.headers['x-api-version'], '2.4.0')
     const body = JSON.parse(res.body)
     assert.strictEqual(body.service, 'estimator-api')
     assert.ok(body.links?.landing)
@@ -65,7 +65,7 @@ describe('estimator-api', () => {
     const body = JSON.parse(res.body)
     assert.strictEqual(body.ok, true)
     assert.strictEqual(body.storage, 'ready')
-    assert.strictEqual(body.version, '2.3.0')
+    assert.strictEqual(body.version, '2.4.0')
     assert.strictEqual(body.storageDriver, 'sqlite')
   })
 
@@ -205,8 +205,91 @@ describe('estimator-api', () => {
     assert.strictEqual(body.limit, 5)
     assert.strictEqual(body.offset, 0)
     assert.strictEqual(body.status, null)
+    assert.strictEqual(body.q, null)
     assert.strictEqual(body.items[0].id, id)
     assert.strictEqual(body.items[0].summary, undefined)
+  })
+
+  it('GET /api/v1/quotes and leads support q search', async () => {
+    await store.writeQuotes([])
+    await leadsStore.writeLeads([])
+    const quoteRef = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/v1/quotes',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        projectType: 'landing',
+        addOnIds: [],
+        extraSections: '0',
+        min: 1,
+        max: 2,
+        lang: 'en',
+        quoteRef,
+      }),
+    })
+    const { id } = JSON.parse(post.body)
+    await app.inject({
+      method: 'POST',
+      url: '/api/v1/quotes',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        projectType: 'website',
+        addOnIds: [],
+        extraSections: '0',
+        min: 3,
+        max: 4,
+        lang: 'en',
+      }),
+    })
+
+    const byRef = await app.inject({
+      url: `/api/v1/quotes?q=${encodeURIComponent('EEEEEEEE')}`,
+    })
+    assert.strictEqual(byRef.statusCode, 200)
+    const refBody = JSON.parse(byRef.body)
+    assert.strictEqual(refBody.q, 'EEEEEEEE')
+    assert.strictEqual(refBody.total, 1)
+    assert.strictEqual(refBody.items[0].id, id)
+    assert.strictEqual(refBody.items[0].quoteRef, quoteRef)
+
+    const byId = await app.inject({
+      url: `/api/v1/quotes?q=${encodeURIComponent(id.slice(0, 8))}`,
+    })
+    assert.strictEqual(JSON.parse(byId.body).items[0].id, id)
+
+    await app.inject({
+      method: 'POST',
+      url: '/api/v1/leads',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        name: 'Search Ada',
+        email: 'ada-search@example.com',
+        message: 'hi',
+        quoteRef: id,
+      }),
+    })
+    await app.inject({
+      method: 'POST',
+      url: '/api/v1/leads',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        name: 'Other',
+        email: 'other@example.com',
+        message: 'no',
+      }),
+    })
+
+    const byEmail = await app.inject({
+      url: '/api/v1/leads?q=ADA-SEARCH',
+    })
+    assert.strictEqual(byEmail.statusCode, 200)
+    const emailBody = JSON.parse(byEmail.body)
+    assert.strictEqual(emailBody.total, 1)
+    assert.strictEqual(emailBody.items[0].email, 'ada-search@example.com')
+
+    const byName = await app.inject({ url: '/api/v1/leads?q=Search%20Ada' })
+    assert.strictEqual(JSON.parse(byName.body).total, 1)
   })
 
   it('GET /api/v1/quotes and leads support status filter and offset', async () => {
@@ -511,7 +594,7 @@ describe('estimator-api', () => {
     assert.ok(typeof body.totalLeads === 'number')
     assert.ok(body.quotesByStatus)
     assert.ok(body.leadsByStatus)
-    assert.strictEqual(body.version, '2.3.0')
+    assert.strictEqual(body.version, '2.4.0')
   })
 
   it('GET /api/v1/backup requires token and returns a SQLite file', async () => {

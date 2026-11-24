@@ -226,6 +226,38 @@ describe('store', () => {
     })
     assert.strictEqual(contacted.total, 1)
     assert.strictEqual(contacted.items[0].email, 'b@example.com')
+
+    await store.writeQuotes([
+      {
+        id: 'c1c1c1c1-c1c1-4c1c-8c1c-c1c1c1c1c1c1',
+        createdAt: '2026-01-03T00:00:00.000Z',
+        projectType: 'landing',
+        addOnIds: [],
+        extraSections: '0',
+        min: 1,
+        max: 2,
+        lang: 'en',
+        quoteRef: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        summary: null,
+        status: 'draft',
+      },
+    ])
+    const byRef = await store.listQuotesRecent(10, { q: 'DDDDDDDD' })
+    assert.strictEqual(byRef.total, 1)
+    assert.strictEqual(
+      byRef.items[0].id,
+      'c1c1c1c1-c1c1-4c1c-8c1c-c1c1c1c1c1c1'
+    )
+    assert.strictEqual(
+      byRef.items[0].quoteRef,
+      'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+    )
+
+    const byLeadEmail = await leadsStore.listLeadsRecent(10, {
+      q: 'B@EXAMPLE',
+    })
+    assert.strictEqual(byLeadEmail.total, 1)
+    assert.strictEqual(byLeadEmail.items[0].name, 'B')
   })
 
   it('updateLeadById returns null for a missing id', async () => {

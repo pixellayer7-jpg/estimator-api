@@ -102,6 +102,20 @@ test.describe('CRM API flow (real HTTP)', () => {
     expect(sentPage.items.every((i) => i.status === 'sent')).toBe(true)
     expect(sentPage.items.some((i) => i.id === quoteId)).toBe(true)
 
+    const searched = await request.get(
+      `/api/v1/quotes?q=${encodeURIComponent(quoteId.slice(0, 8))}`,
+      { headers: { Authorization: `Bearer ${E2E_TOKEN}` } }
+    )
+    expect(searched.status()).toBe(200)
+    const searchPage = await searched.json()
+    expect(searchPage.q).toBe(quoteId.slice(0, 8))
+    expect(searchPage.items.some((i) => i.id === quoteId)).toBe(true)
+
+    const leadSearch = await request.get('/api/v1/leads?q=e2e', {
+      headers: { Authorization: `Bearer ${E2E_TOKEN}` },
+    })
+    expect(leadSearch.status()).toBe(200)
+
     const stats = await request.get('/api/v1/stats')
     expect(stats.status()).toBe(200)
     const s = await stats.json()

@@ -124,43 +124,51 @@ export async function appendLead(record) {
  * @param {{ offset?: number, status?: string|null }} [options]
  * @returns {Promise<{ items: object[], total: number, limit: number, offset: number }>}
  */
+function escapeLike(s) {
+  return String(s)
+    .replace(/\\/g, '\\\\')
+    .replace(/%/g, '\\%')
+    .replace(/_/g, '\\_')
+}
+
 export async function listLeadsRecent(limit = 20, options = {}) {
   const db = getDb()
   const n = Math.min(100, Math.max(1, Math.floor(limit) || 20))
   const offset = Math.max(0, Math.floor(Number(options.offset)) || 0)
   const status =
     typeof options.status === 'string' && options.status ? options.status : null
+  const q =
+    typeof options.q === 'string' && options.q.trim() ? options.q.trim() : null
 
-  let total
-  let rows
+  const where = []
+  const params = []
   if (status) {
-    total = db
-      .prepare('SELECT COUNT(*) AS n FROM leads WHERE status = ?')
-      .get(status).n
-    rows = db
-      .prepare(
-        `
-        SELECT id, created_at, name, email, source, status, quote_ref, project_type
-        FROM leads
-        WHERE status = ?
-        ORDER BY created_at DESC, id DESC
-        LIMIT ? OFFSET ?
-      `
-      )
-      .all(status, n, offset)
-  } else {
-    total = db.prepare('SELECT COUNT(*) AS n FROM leads').get().n
-    rows = db
-      .prepare(
-        `
-        SELECT id, created_at, name, email, source, status, quote_ref, project_type
-        FROM leads
-        ORDER BY created_at DESC, id DESC
-        LIMIT ? OFFSET ?
-      `
-      )
-      .all(n, offset)
+    where.push('status = ?')
+    params.push(status)
   }
+  if (q) {
+    const pat = `%${escapeLike(q.toLowerCase())}%`
+    where.push(
+      `(lower(name) LIKE ? ESCAPE '\\' OR lower(email) LIKE ? ESCAPE '\\' OR lower(ifnull(quote_ref, '')) LIKE ? ESCAPE '\\')`
+    )
+    params.push(pat, pat, pat)
+  }
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+
+  const total = db
+    .prepare(`SELECT COUNT(*) AS n FROM leads ${whereSql}`)
+    .get(...params).n
+  const rows = db
+    .prepare(
+      `
+      SELECT id, created_at, name, email, source, status, quote_ref, project_type
+      FROM leads
+      ${whereSql}
+      ORDER BY created_at DESC, id DESC
+      LIMIT ? OFFSET ?
+    `
+    )
+    .all(...params, n, offset)
 
   const items = rows.map((l) => ({
     id: l.id,

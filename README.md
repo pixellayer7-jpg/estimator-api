@@ -7,24 +7,24 @@ Minimal **Node.js + Fastify** service for **PixelLayer** to **save** calculator 
 
 **Live frontends:** [Landing](https://pixellayer7-jpg.github.io/1/) · [Quote calculator](https://pixellayer7-jpg.github.io/project-estimator/) · [CRM admin](https://pixellayer7-jpg.github.io/project-estimator/?admin=1) (wire with `VITE_QUOTE_API_URL` / `VITE_LEAD_API_URL` + CORS when deployed).
 
-## What it does (v2.3.0)
+## What it does (v2.4.0)
 
-| Method  | Path                   | Auth                | Description                                                                                                                                                  |
-| ------- | ---------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `GET`   | `/`                    | —                   | Service name, version, and endpoint map (JSON)                                                                                                               |
-| `GET`   | `/health`              | —                   | Liveness + storage writable check; includes `version`                                                                                                        |
-| `GET`   | `/api/v1/openapi.json` | —                   | OpenAPI 3.0.3 with schemas, request/response examples, Bearer security (static copy: [`docs/openapi.json`](./docs/openapi.json))                             |
-| `GET`   | `/api/v1/me`           | Bearer if token set | Current `{ auth, role, permissions }` (`auth=open` when no tokens configured)                                                                                |
-| `GET`   | `/api/v1/stats`        | —                   | `{ totalQuotes, totalLeads, quotesByStatus, leadsByStatus, version }`                                                                                        |
-| `GET`   | `/api/v1/backup`       | Admin Bearer        | Download SQLite snapshot (`application/vnd.sqlite3`). Needs admin token (503 if none configured). Offline: `npm run backup`                                  |
-| `GET`   | `/api/v1/quotes`       | Bearer if token set | List quotes (newest first); `limit` 1–100, `offset`, optional `status`. Returns `{ count, total, limit, offset, status, items }` (items omit `summary`)      |
-| `POST`  | `/api/v1/quotes`       | —                   | Save quote snapshot (JSON Schema). Returns `{ id, createdAt, path, loadQuery, links }` with `links.calculator` / `links.contact`                             |
-| `GET`   | `/api/v1/quotes/:id`   | —                   | Load one saved quote (UUID). Public share link                                                                                                               |
-| `PATCH` | `/api/v1/quotes/:id`   | write role          | Update quote `status`: `draft` \| `sent` \| `accepted` \| `declined`                                                                                         |
-| `GET`   | `/api/v1/leads`        | Bearer if token set | List leads (newest first); `limit` / `offset` / optional `status`. Same page shape as quotes                                                                 |
-| `POST`  | `/api/v1/leads`        | —                   | Store contact lead (`name`, `email`, `message` required; optional `subject`, `projectType`, `timeline`, `quoteRef`, `source`, `lang`). Default `status: new` |
-| `GET`   | `/api/v1/leads/:id`    | Bearer if token set | Load one lead by UUID                                                                                                                                        |
-| `PATCH` | `/api/v1/leads/:id`    | write role          | Update lead `status`: `new` \| `contacted` \| `qualified` \| `closed`                                                                                        |
+| Method  | Path                   | Auth                | Description                                                                                                                                                                       |
+| ------- | ---------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`   | `/`                    | —                   | Service name, version, and endpoint map (JSON)                                                                                                                                    |
+| `GET`   | `/health`              | —                   | Liveness + storage writable check; includes `version`                                                                                                                             |
+| `GET`   | `/api/v1/openapi.json` | —                   | OpenAPI 3.0.3 with schemas, request/response examples, Bearer security (static copy: [`docs/openapi.json`](./docs/openapi.json))                                                  |
+| `GET`   | `/api/v1/me`           | Bearer if token set | Current `{ auth, role, permissions }` (`auth=open` when no tokens configured)                                                                                                     |
+| `GET`   | `/api/v1/stats`        | —                   | `{ totalQuotes, totalLeads, quotesByStatus, leadsByStatus, version }`                                                                                                             |
+| `GET`   | `/api/v1/backup`       | Admin Bearer        | Download SQLite snapshot (`application/vnd.sqlite3`). Needs admin token (503 if none configured). Offline: `npm run backup`                                                       |
+| `GET`   | `/api/v1/quotes`       | Bearer if token set | List quotes (newest first); `limit` 1–100, `offset`, optional `status` / `q` (quoteRef or id). Returns `{ count, total, limit, offset, status, q, items }` (items omit `summary`) |
+| `POST`  | `/api/v1/quotes`       | —                   | Save quote snapshot (JSON Schema). Returns `{ id, createdAt, path, loadQuery, links }` with `links.calculator` / `links.contact`                                                  |
+| `GET`   | `/api/v1/quotes/:id`   | —                   | Load one saved quote (UUID). Public share link                                                                                                                                    |
+| `PATCH` | `/api/v1/quotes/:id`   | write role          | Update quote `status`: `draft` \| `sent` \| `accepted` \| `declined`                                                                                                              |
+| `GET`   | `/api/v1/leads`        | Bearer if token set | List leads (newest first); `limit` / `offset` / optional `status` / `q` (name, email, quoteRef). Same page shape as quotes                                                        |
+| `POST`  | `/api/v1/leads`        | —                   | Store contact lead (`name`, `email`, `message` required; optional `subject`, `projectType`, `timeline`, `quoteRef`, `source`, `lang`). Default `status: new`                      |
+| `GET`   | `/api/v1/leads/:id`    | Bearer if token set | Load one lead by UUID                                                                                                                                                             |
+| `PATCH` | `/api/v1/leads/:id`    | write role          | Update lead `status`: `new` \| `contacted` \| `qualified` \| `closed`                                                                                                             |
 
 **Auth note:** Configure **`LIST_QUOTES_TOKEN`** (admin) and/or **`API_TOKENS`** (`admin:…,crm:…,readonly:…` or JSON). Roles: **admin** list+write+backup · **crm** list+write · **readonly** list. Missing/wrong token → **401**; authenticated but insufficient role → **403**. Single-quote `GET /api/v1/quotes/:id` stays public. Leave tokens empty for local/dev open mode.
 

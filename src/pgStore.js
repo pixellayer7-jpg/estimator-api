@@ -122,45 +122,59 @@ export async function findQuoteById(id) {
   return rowToQuote(rows[0])
 }
 
+function escapeLike(s) {
+  return String(s)
+    .replace(/\\/g, '\\\\')
+    .replace(/%/g, '\\%')
+    .replace(/_/g, '\\_')
+}
+
 export async function listQuotesRecent(limit = 20, options = {}) {
   const n = Math.min(100, Math.max(1, Math.floor(limit) || 20))
   const offset = Math.max(0, Math.floor(Number(options.offset)) || 0)
   const status =
     typeof options.status === 'string' && options.status ? options.status : null
+  const q =
+    typeof options.q === 'string' && options.q.trim() ? options.q.trim() : null
 
-  let total
-  let rows
+  const where = []
+  const params = []
   if (status) {
-    const countRes = await pg.query(
-      'SELECT COUNT(*)::int AS n FROM quotes WHERE status = $1',
-      [status]
-    )
-    total = countRes.rows[0].n
-    const listRes = await pg.query(
-      `
-      SELECT id, created_at, project_type, min, max, lang, status
-      FROM quotes
-      WHERE status = $1
-      ORDER BY created_at DESC, id DESC
-      LIMIT $2 OFFSET $3
-    `,
-      [status, n, offset]
-    )
-    rows = listRes.rows
-  } else {
-    const countRes = await pg.query('SELECT COUNT(*)::int AS n FROM quotes')
-    total = countRes.rows[0].n
-    const listRes = await pg.query(
-      `
-      SELECT id, created_at, project_type, min, max, lang, status
-      FROM quotes
-      ORDER BY created_at DESC, id DESC
-      LIMIT $1 OFFSET $2
-    `,
-      [n, offset]
-    )
-    rows = listRes.rows
+    params.push(status)
+    where.push(`status = $${params.length}`)
   }
+  if (q) {
+    const pat = `%${escapeLike(q.toLowerCase())}%`
+    params.push(pat)
+    const p1 = `$${params.length}`
+    params.push(pat)
+    const p2 = `$${params.length}`
+    where.push(
+      `(lower(coalesce(quote_ref, '')) LIKE ${p1} ESCAPE '\\' OR lower(id::text) LIKE ${p2} ESCAPE '\\')`
+    )
+  }
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+
+  const countRes = await pg.query(
+    `SELECT COUNT(*)::int AS n FROM quotes ${whereSql}`,
+    params
+  )
+  const total = countRes.rows[0].n
+  params.push(n)
+  const limitIdx = `$${params.length}`
+  params.push(offset)
+  const offsetIdx = `$${params.length}`
+  const listRes = await pg.query(
+    `
+    SELECT id, created_at, project_type, min, max, lang, status, quote_ref
+    FROM quotes
+    ${whereSql}
+    ORDER BY created_at DESC, id DESC
+    LIMIT ${limitIdx} OFFSET ${offsetIdx}
+  `,
+    params
+  )
+  const rows = listRes.rows
 
   const items = rows.map((row) => ({
     id: row.id,
@@ -173,6 +187,7 @@ export async function listQuotesRecent(limit = 20, options = {}) {
     max: Number(row.max),
     lang: row.lang,
     status: row.status || 'draft',
+    quoteRef: row.quote_ref ?? null,
   }))
   return { items, total, limit: n, offset }
 }
