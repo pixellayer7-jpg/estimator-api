@@ -1,7 +1,7 @@
 {
   "name": "estimator-api",
   "private": true,
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "PixelLayer — quote/lead API with SQLite default and optional PostgreSQL (DATABASE_URL).",
   "type": "module",
   "author": "PixelLayer L.L.C",
@@ -17,7 +17,7 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node --test",
-    "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude=\"**/*.test.js\" --test-coverage-exclude=\"**/pg.js\" --test-coverage-exclude=\"**/pgStore.js\" --test-coverage-exclude=\"**/pgLeadsStore.js\" --test-coverage-lines=100 --test-coverage-branches=82 --test-coverage-functions=100",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude=\"**/*.test.js\" --test-coverage-exclude=\"**/pg.js\" --test-coverage-exclude=\"**/pgStore.js\" --test-coverage-exclude=\"**/pgLeadsStore.js\" --test-coverage-exclude=\"**/pgAuditStore.js\" --test-coverage-lines=100 --test-coverage-branches=82 --test-coverage-functions=100",
     "test:e2e": "playwright test",
     "demo:curl": "node docs/demo-curl.mjs",
     "backup": "node scripts/backup.mjs",

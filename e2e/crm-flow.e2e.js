@@ -116,6 +116,14 @@ test.describe('CRM API flow (real HTTP)', () => {
     })
     expect(leadSearch.status()).toBe(200)
 
+    const audit = await request.get('/api/v1/audit?limit=20', {
+      headers: { Authorization: `Bearer ${E2E_TOKEN}` },
+    })
+    expect(audit.status()).toBe(200)
+    const auditBody = await audit.json()
+    expect(auditBody.items.some((e) => e.action === 'quote.patch')).toBe(true)
+    expect(auditBody.items.some((e) => e.action === 'lead.patch')).toBe(true)
+
     const stats = await request.get('/api/v1/stats')
     expect(stats.status()).toBe(200)
     const s = await stats.json()

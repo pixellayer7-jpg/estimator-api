@@ -64,10 +64,11 @@ describe('auth', () => {
     assert.ok(entries.some((e) => e.token === 'ro-json'))
   })
 
-  it('authorize opens list/write when no tokens, but backup is 503', () => {
+  it('authorize opens list/write/audit when no tokens, but backup is 503', () => {
     const reply = mockReply()
     assert.strictEqual(authorize({ headers: {} }, reply, 'list'), true)
     assert.strictEqual(authorize({ headers: {} }, reply, 'write'), true)
+    assert.strictEqual(authorize({ headers: {} }, reply, 'audit'), true)
     assert.strictEqual(authorize({ headers: {} }, reply, 'backup'), false)
     assert.strictEqual(reply.codeVal, 503)
   })
@@ -99,6 +100,11 @@ describe('auth', () => {
 
     const reply3 = mockReply()
     assert.strictEqual(authorize(adminReq, reply3, 'backup'), true)
+    assert.strictEqual(authorize(adminReq, reply3, 'audit'), true)
+
+    const replyCrmAudit = mockReply()
+    assert.strictEqual(authorize(crmReq, replyCrmAudit, 'audit'), false)
+    assert.strictEqual(replyCrmAudit.codeVal, 403)
 
     const reply4 = mockReply()
     assert.strictEqual(authorize({ headers: {} }, reply4, 'list'), false)

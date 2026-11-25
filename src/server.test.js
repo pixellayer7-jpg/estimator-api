@@ -50,7 +50,7 @@ describe('estimator-api', () => {
     const res = await app.inject({ method: 'GET', url: '/' })
     assert.strictEqual(res.statusCode, 200)
     assert.strictEqual(res.headers['x-content-type-options'], 'nosniff')
-    assert.strictEqual(res.headers['x-api-version'], '2.4.0')
+    assert.strictEqual(res.headers['x-api-version'], '2.5.0')
     const body = JSON.parse(res.body)
     assert.strictEqual(body.service, 'estimator-api')
     assert.ok(body.links?.landing)
@@ -65,7 +65,7 @@ describe('estimator-api', () => {
     const body = JSON.parse(res.body)
     assert.strictEqual(body.ok, true)
     assert.strictEqual(body.storage, 'ready')
-    assert.strictEqual(body.version, '2.4.0')
+    assert.strictEqual(body.version, '2.5.0')
     assert.strictEqual(body.storageDriver, 'sqlite')
   })
 
@@ -594,7 +594,7 @@ describe('estimator-api', () => {
     assert.ok(typeof body.totalLeads === 'number')
     assert.ok(body.quotesByStatus)
     assert.ok(body.leadsByStatus)
-    assert.strictEqual(body.version, '2.4.0')
+    assert.strictEqual(body.version, '2.5.0')
   })
 
   it('GET /api/v1/backup requires token and returns a SQLite file', async () => {
@@ -941,6 +941,7 @@ describe('estimator-api', () => {
       assert.strictEqual(body.permissions.list, true)
       assert.strictEqual(body.permissions.write, true)
       assert.strictEqual(body.permissions.backup, false)
+      assert.strictEqual(body.permissions.audit, true)
     } finally {
       if (prevList === undefined) delete process.env.LIST_QUOTES_TOKEN
       else process.env.LIST_QUOTES_TOKEN = prevList
@@ -970,6 +971,7 @@ describe('estimator-api', () => {
       assert.strictEqual(meBody.role, 'crm')
       assert.strictEqual(meBody.permissions.write, true)
       assert.strictEqual(meBody.permissions.backup, false)
+      assert.strictEqual(meBody.permissions.audit, false)
 
       const list = await roleApp.inject({
         url: '/api/v1/quotes?limit=1',
@@ -1014,6 +1016,12 @@ describe('estimator-api', () => {
       })
       assert.strictEqual(okPatch.statusCode, 200)
 
+      const forbiddenAudit = await roleApp.inject({
+        url: '/api/v1/audit?limit=5',
+        headers: { authorization: 'Bearer crm-secret' },
+      })
+      assert.strictEqual(forbiddenAudit.statusCode, 403)
+
       const forbiddenBackup = await roleApp.inject({
         url: '/api/v1/backup',
         headers: { authorization: 'Bearer crm-secret' },
@@ -1025,6 +1033,26 @@ describe('estimator-api', () => {
         headers: { authorization: 'Bearer ad-secret' },
       })
       assert.strictEqual(okBackup.statusCode, 200)
+
+      const audit = await roleApp.inject({
+        url: '/api/v1/audit?limit=10',
+        headers: { authorization: 'Bearer ad-secret' },
+      })
+      assert.strictEqual(audit.statusCode, 200)
+      const auditBody = JSON.parse(audit.body)
+      assert.ok(auditBody.total >= 2)
+      assert.ok(auditBody.items.some((e) => e.action === 'quote.patch'))
+      assert.ok(auditBody.items.some((e) => e.action === 'backup.download'))
+      assert.ok(
+        auditBody.items.some(
+          (e) => e.action === 'quote.patch' && e.role === 'crm'
+        )
+      )
+      assert.ok(
+        auditBody.items.some(
+          (e) => e.action === 'backup.download' && e.role === 'admin'
+        )
+      )
     } finally {
       await roleApp.close()
       if (prevList === undefined) delete process.env.LIST_QUOTES_TOKEN
@@ -1032,5 +1060,68 @@ describe('estimator-api', () => {
       if (prevApi === undefined) delete process.env.API_TOKENS
       else process.env.API_TOKENS = prevApi
     }
+  })
+
+  it('GET /api/v1/audit lists PATCH events and filters by action', async () => {
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/v1/quotes',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        projectType: 'landing',
+        addOnIds: [],
+        extraSections: '0',
+        min: 1,
+        max: 2,
+        lang: 'en',
+      }),
+    })
+    const { id } = JSON.parse(post.body)
+    await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/quotes/${id}`,
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({ status: 'accepted' }),
+    })
+
+    const leadPost = await app.inject({
+      method: 'POST',
+      url: '/api/v1/leads',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        name: 'Audit Lead',
+        email: 'audit@example.com',
+        message: 'hi',
+      }),
+    })
+    const leadId = JSON.parse(leadPost.body).id
+    await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/leads/${leadId}`,
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({ status: 'contacted' }),
+    })
+
+    const all = await app.inject({ url: '/api/v1/audit?limit=50&offset=0' })
+    assert.strictEqual(all.statusCode, 200)
+    const body = JSON.parse(all.body)
+    assert.ok(body.items.some((e) => e.action === 'quote.patch'))
+    assert.ok(body.items.some((e) => e.action === 'lead.patch'))
+
+    const paged = await app.inject({ url: '/api/v1/audit?limit=1&offset=1' })
+    assert.strictEqual(paged.statusCode, 200)
+    assert.strictEqual(JSON.parse(paged.body).offset, 1)
+    assert.strictEqual(JSON.parse(paged.body).count, 1)
+
+    const filtered = await app.inject({
+      url: '/api/v1/audit?action=lead.patch&limit=20',
+    })
+    const page = JSON.parse(filtered.body)
+    assert.strictEqual(page.action, 'lead.patch')
+    assert.ok(page.items.length >= 1)
+    assert.ok(page.items.every((e) => e.action === 'lead.patch'))
+
+    const bad = await app.inject({ url: '/api/v1/audit?action=nope' })
+    assert.strictEqual(bad.statusCode, 400)
   })
 })

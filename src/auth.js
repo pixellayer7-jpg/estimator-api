@@ -1,13 +1,13 @@
 import { timingSafeEqual } from 'node:crypto'
 
 /** @typedef {'admin' | 'crm' | 'readonly'} AuthRole */
-/** @typedef {'list' | 'write' | 'backup'} AuthPermission */
+/** @typedef {'list' | 'write' | 'backup' | 'audit'} AuthPermission */
 
 /** @type {Record<AuthRole, Record<AuthPermission, boolean>>} */
 export const ROLE_PERMISSIONS = {
-  admin: { list: true, write: true, backup: true },
-  crm: { list: true, write: true, backup: false },
-  readonly: { list: true, write: false, backup: false },
+  admin: { list: true, write: true, backup: true, audit: true },
+  crm: { list: true, write: true, backup: false, audit: false },
+  readonly: { list: true, write: false, backup: false, audit: false },
 }
 
 export function safeTokenEquals(a, b) {

@@ -25,6 +25,21 @@ import {
   updateLeadById,
   leadStatusBreakdown,
 } from './leadsStore.js'
+import { appendAuditEvent, listAuditEvents } from './auditStore.js'
+
+const AUDIT_ACTIONS = ['quote.patch', 'lead.patch', 'backup.download']
+
+async function recordAudit(request, fields) {
+  await appendAuditEvent({
+    id: randomUUID(),
+    createdAt: new Date().toISOString(),
+    action: fields.action,
+    resourceType: fields.resourceType ?? null,
+    resourceId: fields.resourceId ?? null,
+    role: request.principal?.role ?? null,
+    detail: fields.detail ?? null,
+  })
+}
 
 const PROJECT_TYPES = ['landing', 'website', 'dashboard']
 const ADDON_IDS = ['design', 'i18n', 'rush']
@@ -194,7 +209,7 @@ export function buildOpenApiDocument(version) {
       title: 'PixelLayer estimator-api',
       version,
       description:
-        'Quote + lead CRM for PixelLayer. Default storage is SQLite; set DATABASE_URL for PostgreSQL. Public GET by quote UUID. Bearer auth via LIST_QUOTES_TOKEN (admin) and/or API_TOKENS (admin|crm|readonly). Backup is SQLite-only and admin-only.',
+        'Quote + lead CRM for PixelLayer. Default storage is SQLite; set DATABASE_URL for PostgreSQL. Public GET by quote UUID. Bearer auth via LIST_QUOTES_TOKEN (admin) and/or API_TOKENS (admin|crm|readonly). Backup and audit log are admin-only; backup is SQLite-only.',
       contact: {
         name: 'PixelLayer L.L.C',
         email: 'pixellayer7@gmail.com',
@@ -213,6 +228,7 @@ export function buildOpenApiDocument(version) {
       { name: 'Quotes' },
       { name: 'Leads' },
       { name: 'Backup' },
+      { name: 'Audit' },
     ],
     components: {
       securitySchemes: {
@@ -221,7 +237,7 @@ export function buildOpenApiDocument(version) {
           scheme: 'bearer',
           bearerFormat: 'opaque',
           description:
-            'Token from LIST_QUOTES_TOKEN (admin) or API_TOKENS. Roles: admin (list+write+backup), crm (list+write), readonly (list).',
+            'Token from LIST_QUOTES_TOKEN (admin) or API_TOKENS. Roles: admin (list+write+backup+audit), crm (list+write), readonly (list).',
         },
       },
       schemas: {
@@ -351,6 +367,46 @@ export function buildOpenApiDocument(version) {
                 '{ auth, role, permissions } — auth=open when no tokens configured',
             },
             401: { description: 'Bearer required when tokens are configured' },
+          },
+        },
+      },
+      '/api/v1/audit': {
+        get: {
+          tags: ['Audit'],
+          summary: 'List recent audit events (admin)',
+          description:
+            'Newest first. Records successful quote/lead PATCH and SQLite backup downloads. Requires admin when tokens are configured.',
+          security: bearer,
+          parameters: [
+            {
+              name: 'limit',
+              in: 'query',
+              schema: {
+                type: 'integer',
+                minimum: 1,
+                maximum: 100,
+                default: 20,
+              },
+            },
+            {
+              name: 'offset',
+              in: 'query',
+              schema: { type: 'integer', minimum: 0, default: 0 },
+            },
+            {
+              name: 'action',
+              in: 'query',
+              schema: { type: 'string', enum: AUDIT_ACTIONS },
+              description: 'Filter by action',
+            },
+          ],
+          responses: {
+            200: {
+              description: '{ count, total, limit, offset, action, items }',
+            },
+            400: { description: 'Invalid action' },
+            401: { description: 'Unauthorized when tokens configured' },
+            403: { description: 'Authenticated but role cannot audit' },
           },
         },
       },
@@ -676,6 +732,7 @@ export default async function buildApp(options = {}) {
       stats: 'GET /api/v1/stats',
       me: 'GET /api/v1/me',
       backup: 'GET /api/v1/backup',
+      audit: 'GET /api/v1/audit?limit=20&offset=0&action=',
     },
   }))
 
@@ -686,7 +743,12 @@ export default async function buildApp(options = {}) {
       return {
         auth: 'open',
         role: null,
-        permissions: { list: true, write: true, backup: false },
+        permissions: {
+          list: true,
+          write: true,
+          backup: false,
+          audit: true,
+        },
       }
     }
     const principal = authenticate(request)
@@ -700,6 +762,40 @@ export default async function buildApp(options = {}) {
       auth: 'bearer',
       role: principal.role,
       permissions: principal.permissions,
+    }
+  })
+
+  app.get('/api/v1/audit', async (request, reply) => {
+    if (!authorize(request, reply, 'audit')) return
+    let limit = 20
+    let offset = 0
+    let action = null
+    const rawLimit = request.query?.limit
+    if (rawLimit !== undefined && rawLimit !== '') {
+      const p = Number.parseInt(String(rawLimit), 10)
+      if (Number.isFinite(p)) limit = p
+    }
+    const rawOffset = request.query?.offset
+    if (rawOffset !== undefined && rawOffset !== '') {
+      const p = Number.parseInt(String(rawOffset), 10)
+      if (Number.isFinite(p) && p >= 0) offset = Math.floor(p)
+    }
+    const rawAction = request.query?.action
+    if (rawAction !== undefined && rawAction !== '') {
+      const a = String(rawAction)
+      if (!AUDIT_ACTIONS.includes(a)) {
+        return reply.code(400).send({ error: 'Invalid action' })
+      }
+      action = a
+    }
+    const page = await listAuditEvents(limit, { offset, action })
+    return {
+      count: page.items.length,
+      total: page.total,
+      limit: page.limit,
+      offset: page.offset,
+      action,
+      items: page.items,
     }
   })
 
@@ -721,6 +817,12 @@ export default async function buildApp(options = {}) {
         const { path, filename } = runBackup()
         backupPath = path
         const body = readFileSync(path)
+        await recordAudit(request, {
+          action: 'backup.download',
+          resourceType: 'backup',
+          resourceId: filename,
+          detail: { bytes: body.length },
+        })
         return reply
           .header('Content-Type', 'application/vnd.sqlite3')
           .header('Content-Disposition', `attachment; filename="${filename}"`)
@@ -895,6 +997,12 @@ export default async function buildApp(options = {}) {
       const row = await findQuoteById(id)
       if (!row) return reply.code(404).send({ error: 'Not found' })
       const updated = await updateQuoteById(id, { status: request.body.status })
+      await recordAudit(request, {
+        action: 'quote.patch',
+        resourceType: 'quote',
+        resourceId: id,
+        detail: { status: request.body.status, from: row.status || 'draft' },
+      })
       return updated
     }
   )
@@ -997,6 +1105,12 @@ export default async function buildApp(options = {}) {
       const row = await findLeadById(id)
       if (!row) return reply.code(404).send({ error: 'Not found' })
       const updated = await updateLeadById(id, { status: request.body.status })
+      await recordAudit(request, {
+        action: 'lead.patch',
+        resourceType: 'lead',
+        resourceId: id,
+        detail: { status: request.body.status, from: row.status || 'new' },
+      })
       return updated
     }
   )

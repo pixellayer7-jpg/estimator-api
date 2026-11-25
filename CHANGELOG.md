@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.0
+
+- Audit: successful `PATCH` quote/lead and SQLite `GET /api/v1/backup` write `audit_events` (role + detail)
+- `GET /api/v1/audit` lists events (`limit` / `offset` / optional `action`); admin-only when tokens configured
+- Dual driver: SQLite + Postgres schema; OpenAPI Audit tag; `/me` includes `audit` permission
+
 ## 2.4.0
 
 - Lists: `GET /api/v1/quotes` and `GET /api/v1/leads` support `q` search (quotes: quoteRef/id; leads: name/email/quoteRef)

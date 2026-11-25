@@ -49,6 +49,17 @@ function migrateSchema(database) {
       status TEXT NOT NULL DEFAULT 'new'
     );
     CREATE INDEX IF NOT EXISTS idx_leads_created ON leads(created_at);
+
+    CREATE TABLE IF NOT EXISTS audit_events (
+      id TEXT PRIMARY KEY NOT NULL,
+      created_at TEXT NOT NULL,
+      action TEXT NOT NULL,
+      resource_type TEXT,
+      resource_id TEXT,
+      role TEXT,
+      detail TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_events(created_at);
   `)
 }
 
