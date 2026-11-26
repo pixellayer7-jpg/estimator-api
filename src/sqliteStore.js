@@ -30,6 +30,7 @@ function rowToQuote(row) {
     quoteRef: row.quote_ref,
     summary: row.summary,
     status: row.status || 'draft',
+    notes: row.notes ?? null,
   }
 }
 
@@ -52,8 +53,8 @@ export async function writeQuotes(quotes) {
       const insert = db.prepare(`
         INSERT INTO quotes (
           id, created_at, project_type, add_on_ids, extra_sections,
-          min, max, lang, quote_ref, summary, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          min, max, lang, quote_ref, summary, status, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       for (const q of quotes) {
         insert.run(
@@ -67,7 +68,8 @@ export async function writeQuotes(quotes) {
           q.lang ?? null,
           q.quoteRef ?? null,
           q.summary ?? null,
-          q.status || 'draft'
+          q.status || 'draft',
+          q.notes ?? null
         )
       }
       db.exec('COMMIT')
@@ -87,8 +89,8 @@ export async function appendQuote(record) {
         `
         INSERT INTO quotes (
           id, created_at, project_type, add_on_ids, extra_sections,
-          min, max, lang, quote_ref, summary, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          min, max, lang, quote_ref, summary, status, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
       ).run(
         record.id,
@@ -101,7 +103,8 @@ export async function appendQuote(record) {
         record.lang ?? null,
         record.quoteRef ?? null,
         record.summary ?? null,
-        record.status || 'draft'
+        record.status || 'draft',
+        record.notes ?? null
       )
       const count = db.prepare('SELECT COUNT(*) AS n FROM quotes').get().n
       if (count > MAX_QUOTES) {
@@ -173,7 +176,7 @@ export async function listQuotesRecent(limit = 20, options = {}) {
   const rows = db
     .prepare(
       `
-      SELECT id, created_at, project_type, min, max, lang, status, quote_ref
+      SELECT id, created_at, project_type, min, max, lang, status, quote_ref, notes
       FROM quotes
       ${whereSql}
       ORDER BY created_at DESC, id DESC
@@ -191,6 +194,7 @@ export async function listQuotesRecent(limit = 20, options = {}) {
     lang: row.lang,
     status: row.status || 'draft',
     quoteRef: row.quote_ref ?? null,
+    notes: row.notes ?? null,
   }))
   return { items, total, limit: n, offset }
 }
@@ -214,7 +218,8 @@ export async function updateQuoteById(id, patch) {
         lang = ?,
         quote_ref = ?,
         summary = ?,
-        status = ?
+        status = ?,
+        notes = ?
       WHERE id = ?
     `
     ).run(
@@ -228,6 +233,7 @@ export async function updateQuoteById(id, patch) {
       updated.quoteRef ?? null,
       updated.summary ?? null,
       updated.status || 'draft',
+      updated.notes ?? null,
       id
     )
     return updated

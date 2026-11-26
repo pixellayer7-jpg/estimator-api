@@ -67,17 +67,21 @@ test.describe('CRM API flow (real HTTP)', () => {
 
     const q = await request.patch(`/api/v1/quotes/${quoteId}`, {
       headers: auth,
-      data: { status: 'sent' },
+      data: { status: 'sent', notes: 'E2E follow-up' },
     })
     expect(q.status()).toBe(200)
-    expect((await q.json()).status).toBe('sent')
+    const qBody = await q.json()
+    expect(qBody.status).toBe('sent')
+    expect(qBody.notes).toBe('E2E follow-up')
 
     const l = await request.patch(`/api/v1/leads/${leadId}`, {
       headers: auth,
-      data: { status: 'contacted' },
+      data: { status: 'contacted', notes: 'Called once' },
     })
     expect(l.status()).toBe(200)
-    expect((await l.json()).status).toBe('contacted')
+    const lBody = await l.json()
+    expect(lBody.status).toBe('contacted')
+    expect(lBody.notes).toBe('Called once')
   })
 
   test('list + stats require/reflect CRM state', async ({ request }) => {

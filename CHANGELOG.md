@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.6.0
+
+- Quotes/leads: optional `notes` field (max 4000 chars); list/get include `notes`
+- `PATCH` accepts `status` and/or `notes` (`minProperties: 1`); empty string clears to `null`
+- Schema migration adds `notes` on existing SQLite/Postgres tables; audit records note edits
+
 ## 2.5.0
 
 - Audit: successful `PATCH` quote/lead and SQLite `GET /api/v1/backup` write `audit_events` (role + detail)

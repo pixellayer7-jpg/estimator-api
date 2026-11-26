@@ -39,6 +39,7 @@ function rowToQuote(row) {
     quoteRef: row.quote_ref,
     summary: row.summary,
     status: row.status || 'draft',
+    notes: row.notes ?? null,
   }
 }
 
@@ -55,6 +56,7 @@ function quoteInsertParams(q) {
     q.quoteRef ?? null,
     q.summary ?? null,
     q.status || 'draft',
+    q.notes ?? null,
   ]
 }
 
@@ -74,8 +76,8 @@ export async function writeQuotes(quotes) {
           `
           INSERT INTO quotes (
             id, created_at, project_type, add_on_ids, extra_sections,
-            min, max, lang, quote_ref, summary, status
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+            min, max, lang, quote_ref, summary, status, notes
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
         `,
           quoteInsertParams(q)
         )
@@ -91,8 +93,8 @@ export async function appendQuote(record) {
         `
         INSERT INTO quotes (
           id, created_at, project_type, add_on_ids, extra_sections,
-          min, max, lang, quote_ref, summary, status
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+          min, max, lang, quote_ref, summary, status, notes
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
       `,
         quoteInsertParams(record)
       )
@@ -166,7 +168,7 @@ export async function listQuotesRecent(limit = 20, options = {}) {
   const offsetIdx = `$${params.length}`
   const listRes = await pg.query(
     `
-    SELECT id, created_at, project_type, min, max, lang, status, quote_ref
+    SELECT id, created_at, project_type, min, max, lang, status, quote_ref, notes
     FROM quotes
     ${whereSql}
     ORDER BY created_at DESC, id DESC
@@ -188,6 +190,7 @@ export async function listQuotesRecent(limit = 20, options = {}) {
     lang: row.lang,
     status: row.status || 'draft',
     quoteRef: row.quote_ref ?? null,
+    notes: row.notes ?? null,
   }))
   return { items, total, limit: n, offset }
 }
@@ -210,8 +213,9 @@ export async function updateQuoteById(id, patch) {
         lang = $7,
         quote_ref = $8,
         summary = $9,
-        status = $10
-      WHERE id = $11
+        status = $10,
+        notes = $11
+      WHERE id = $12
     `,
       [
         setParams[1],
@@ -224,6 +228,7 @@ export async function updateQuoteById(id, patch) {
         setParams[8],
         setParams[9],
         setParams[10],
+        setParams[11],
         id,
       ]
     )

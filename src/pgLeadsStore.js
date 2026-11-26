@@ -27,6 +27,7 @@ function rowToLead(row) {
     source: row.source,
     lang: row.lang,
     status: row.status || 'new',
+    notes: row.notes ?? null,
   }
 }
 
@@ -44,6 +45,7 @@ function leadInsertParams(l) {
     l.source ?? null,
     l.lang ?? null,
     l.status || 'new',
+    l.notes ?? null,
   ]
 }
 
@@ -63,8 +65,8 @@ export async function writeLeads(leads) {
           `
           INSERT INTO leads (
             id, created_at, name, email, message, subject, project_type,
-            timeline, quote_ref, source, lang, status
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+            timeline, quote_ref, source, lang, status, notes
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
         `,
           leadInsertParams(l)
         )
@@ -80,8 +82,8 @@ export async function appendLead(record) {
         `
         INSERT INTO leads (
           id, created_at, name, email, message, subject, project_type,
-          timeline, quote_ref, source, lang, status
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+          timeline, quote_ref, source, lang, status, notes
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
       `,
         leadInsertParams(record)
       )
@@ -152,7 +154,7 @@ export async function listLeadsRecent(limit = 20, options = {}) {
   const offsetIdx = `$${params.length}`
   const listRes = await pg.query(
     `
-    SELECT id, created_at, name, email, source, status, quote_ref, project_type
+    SELECT id, created_at, name, email, source, status, quote_ref, project_type, notes
     FROM leads
     ${whereSql}
     ORDER BY created_at DESC, id DESC
@@ -172,6 +174,7 @@ export async function listLeadsRecent(limit = 20, options = {}) {
     status: l.status || 'new',
     quoteRef: l.quote_ref ?? null,
     projectType: l.project_type ?? null,
+    notes: l.notes ?? null,
   }))
   return { items, total, limit: n, offset }
 }
@@ -205,10 +208,25 @@ export async function updateLeadById(id, patch) {
         quote_ref = $8,
         source = $9,
         lang = $10,
-        status = $11
-      WHERE id = $12
+        status = $11,
+        notes = $12
+      WHERE id = $13
     `,
-      [p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9], p[10], p[11], id]
+      [
+        p[1],
+        p[2],
+        p[3],
+        p[4],
+        p[5],
+        p[6],
+        p[7],
+        p[8],
+        p[9],
+        p[10],
+        p[11],
+        p[12],
+        id,
+      ]
     )
     return updated
   })

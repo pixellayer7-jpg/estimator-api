@@ -46,6 +46,9 @@ CREATE TABLE IF NOT EXISTS audit_events (
   detail TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_events(created_at);
+
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS notes TEXT;
 `
 
 export function configured() {

@@ -88,22 +88,37 @@ const postLeadBodySchema = {
   additionalProperties: false,
 }
 
+const NOTES_MAX = 4000
+
 const patchQuoteBodySchema = {
   type: 'object',
-  required: ['status'],
+  minProperties: 1,
   properties: {
     status: { type: 'string', enum: QUOTE_STATUSES },
+    notes: {
+      anyOf: [{ type: 'string', maxLength: NOTES_MAX }, { type: 'null' }],
+    },
   },
   additionalProperties: false,
 }
 
 const patchLeadBodySchema = {
   type: 'object',
-  required: ['status'],
+  minProperties: 1,
   properties: {
     status: { type: 'string', enum: LEAD_STATUSES },
+    notes: {
+      anyOf: [{ type: 'string', maxLength: NOTES_MAX }, { type: 'null' }],
+    },
   },
   additionalProperties: false,
+}
+
+function normalizeNotes(raw) {
+  if (raw === null) return null
+  if (typeof raw !== 'string') return undefined
+  const trimmed = raw.trim()
+  return trimmed.length ? trimmed.slice(0, NOTES_MAX) : null
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -545,7 +560,7 @@ export function buildOpenApiDocument(version) {
         },
         patch: {
           tags: ['Quotes'],
-          summary: 'Update quote status',
+          summary: 'Update quote status and/or notes',
           security: bearer,
           parameters: [uuidParam],
           requestBody: {
@@ -555,6 +570,7 @@ export function buildOpenApiDocument(version) {
                 schema: { $ref: '#/components/schemas/QuoteStatusPatch' },
                 examples: {
                   sent: { value: { status: 'sent' } },
+                  notes: { value: { notes: 'Follow up Friday' } },
                 },
               },
             },
@@ -647,7 +663,7 @@ export function buildOpenApiDocument(version) {
         },
         patch: {
           tags: ['Leads'],
-          summary: 'Update lead status',
+          summary: 'Update lead status and/or notes',
           security: bearer,
           parameters: [uuidParam],
           requestBody: {
@@ -962,6 +978,7 @@ export default async function buildApp(options = {}) {
         quoteRef: typeof quoteRef === 'string' ? quoteRef : null,
         summary: typeof summary === 'string' ? summary : null,
         status: 'draft',
+        notes: null,
       }
 
       await appendQuote(record)
@@ -996,12 +1013,24 @@ export default async function buildApp(options = {}) {
       }
       const row = await findQuoteById(id)
       if (!row) return reply.code(404).send({ error: 'Not found' })
-      const updated = await updateQuoteById(id, { status: request.body.status })
+      const patch = {}
+      if (Object.prototype.hasOwnProperty.call(request.body, 'status')) {
+        patch.status = request.body.status
+      }
+      if (Object.prototype.hasOwnProperty.call(request.body, 'notes')) {
+        patch.notes = normalizeNotes(request.body.notes)
+      }
+      const updated = await updateQuoteById(id, patch)
       await recordAudit(request, {
         action: 'quote.patch',
         resourceType: 'quote',
         resourceId: id,
-        detail: { status: request.body.status, from: row.status || 'draft' },
+        detail: {
+          ...(patch.status !== undefined
+            ? { status: patch.status, from: row.status || 'draft' }
+            : {}),
+          ...(patch.notes !== undefined ? { notes: true } : {}),
+        },
       })
       return updated
     }
@@ -1073,6 +1102,7 @@ export default async function buildApp(options = {}) {
         source: typeof source === 'string' ? source : 'landing',
         lang: typeof lang === 'string' ? lang : 'en',
         status: 'new',
+        notes: null,
       }
 
       await appendLead(record)
@@ -1104,12 +1134,24 @@ export default async function buildApp(options = {}) {
       }
       const row = await findLeadById(id)
       if (!row) return reply.code(404).send({ error: 'Not found' })
-      const updated = await updateLeadById(id, { status: request.body.status })
+      const patch = {}
+      if (Object.prototype.hasOwnProperty.call(request.body, 'status')) {
+        patch.status = request.body.status
+      }
+      if (Object.prototype.hasOwnProperty.call(request.body, 'notes')) {
+        patch.notes = normalizeNotes(request.body.notes)
+      }
+      const updated = await updateLeadById(id, patch)
       await recordAudit(request, {
         action: 'lead.patch',
         resourceType: 'lead',
         resourceId: id,
-        detail: { status: request.body.status, from: row.status || 'new' },
+        detail: {
+          ...(patch.status !== undefined
+            ? { status: patch.status, from: row.status || 'new' }
+            : {}),
+          ...(patch.notes !== undefined ? { notes: true } : {}),
+        },
       })
       return updated
     }

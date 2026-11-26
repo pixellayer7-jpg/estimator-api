@@ -24,6 +24,7 @@ function rowToLead(row) {
     source: row.source,
     lang: row.lang,
     status: row.status || 'new',
+    notes: row.notes ?? null,
   }
 }
 
@@ -45,8 +46,8 @@ export async function writeLeads(leads) {
       const insert = db.prepare(`
         INSERT INTO leads (
           id, created_at, name, email, message, subject, project_type,
-          timeline, quote_ref, source, lang, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          timeline, quote_ref, source, lang, status, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       for (const l of leads) {
         insert.run(
@@ -61,7 +62,8 @@ export async function writeLeads(leads) {
           l.quoteRef ?? null,
           l.source ?? null,
           l.lang ?? null,
-          l.status || 'new'
+          l.status || 'new',
+          l.notes ?? null
         )
       }
       db.exec('COMMIT')
@@ -81,8 +83,8 @@ export async function appendLead(record) {
         `
         INSERT INTO leads (
           id, created_at, name, email, message, subject, project_type,
-          timeline, quote_ref, source, lang, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          timeline, quote_ref, source, lang, status, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
       ).run(
         record.id,
@@ -96,7 +98,8 @@ export async function appendLead(record) {
         record.quoteRef ?? null,
         record.source ?? null,
         record.lang ?? null,
-        record.status || 'new'
+        record.status || 'new',
+        record.notes ?? null
       )
       const count = db.prepare('SELECT COUNT(*) AS n FROM leads').get().n
       if (count > MAX_LEADS) {
@@ -161,7 +164,7 @@ export async function listLeadsRecent(limit = 20, options = {}) {
   const rows = db
     .prepare(
       `
-      SELECT id, created_at, name, email, source, status, quote_ref, project_type
+      SELECT id, created_at, name, email, source, status, quote_ref, project_type, notes
       FROM leads
       ${whereSql}
       ORDER BY created_at DESC, id DESC
@@ -179,6 +182,7 @@ export async function listLeadsRecent(limit = 20, options = {}) {
     status: l.status || 'new',
     quoteRef: l.quote_ref ?? null,
     projectType: l.project_type ?? null,
+    notes: l.notes ?? null,
   }))
   return { items, total, limit: n, offset }
 }
@@ -214,7 +218,8 @@ export async function updateLeadById(id, patch) {
         quote_ref = ?,
         source = ?,
         lang = ?,
-        status = ?
+        status = ?,
+        notes = ?
       WHERE id = ?
     `
     ).run(
@@ -229,6 +234,7 @@ export async function updateLeadById(id, patch) {
       updated.source ?? null,
       updated.lang ?? null,
       updated.status || 'new',
+      updated.notes ?? null,
       id
     )
     return updated

@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "PixelLayer estimator-api",
-    "version": "2.5.0",
+    "version": "2.6.0",
     "description": "Quote + lead CRM for PixelLayer. Default storage is SQLite; set DATABASE_URL for PostgreSQL. Public GET by quote UUID. Bearer auth via LIST_QUOTES_TOKEN (admin) and/or API_TOKENS (admin|crm|readonly). Backup and audit log are admin-only; backup is SQLite-only.",
     "contact": {
       "name": "PixelLayer L.L.C",
@@ -136,9 +136,7 @@
       },
       "QuoteStatusPatch": {
         "type": "object",
-        "required": [
-          "status"
-        ],
+        "minProperties": 1,
         "properties": {
           "status": {
             "type": "string",
@@ -147,6 +145,17 @@
               "sent",
               "accepted",
               "declined"
+            ]
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         },
@@ -232,9 +241,7 @@
       },
       "LeadStatusPatch": {
         "type": "object",
-        "required": [
-          "status"
-        ],
+        "minProperties": 1,
         "properties": {
           "status": {
             "type": "string",
@@ -243,6 +250,17 @@
               "contacted",
               "qualified",
               "closed"
+            ]
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         },
@@ -341,7 +359,7 @@
             "qualified": 0,
             "closed": 0
           },
-          "version": "2.5.0"
+          "version": "2.6.0"
         }
       }
     }
@@ -736,7 +754,7 @@
         "tags": [
           "Quotes"
         ],
-        "summary": "Update quote status",
+        "summary": "Update quote status and/or notes",
         "security": [
           {
             "bearerAuth": []
@@ -765,6 +783,11 @@
                 "sent": {
                   "value": {
                     "status": "sent"
+                  }
+                },
+                "notes": {
+                  "value": {
+                    "notes": "Follow up Friday"
                   }
                 }
               }
@@ -927,7 +950,7 @@
         "tags": [
           "Leads"
         ],
-        "summary": "Update lead status",
+        "summary": "Update lead status and/or notes",
         "security": [
           {
             "bearerAuth": []

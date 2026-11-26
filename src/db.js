@@ -61,6 +61,14 @@ function migrateSchema(database) {
     );
     CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_events(created_at);
   `)
+  ensureColumn(database, 'quotes', 'notes', 'TEXT')
+  ensureColumn(database, 'leads', 'notes', 'TEXT')
+}
+
+function ensureColumn(database, table, column, typeSql) {
+  const cols = database.prepare(`PRAGMA table_info(${table})`).all()
+  if (cols.some((c) => c.name === column)) return
+  database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${typeSql}`)
 }
 
 function parseJsonArray(file, label) {

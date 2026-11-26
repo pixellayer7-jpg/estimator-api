@@ -50,7 +50,7 @@ describe('estimator-api', () => {
     const res = await app.inject({ method: 'GET', url: '/' })
     assert.strictEqual(res.statusCode, 200)
     assert.strictEqual(res.headers['x-content-type-options'], 'nosniff')
-    assert.strictEqual(res.headers['x-api-version'], '2.5.0')
+    assert.strictEqual(res.headers['x-api-version'], '2.6.0')
     const body = JSON.parse(res.body)
     assert.strictEqual(body.service, 'estimator-api')
     assert.ok(body.links?.landing)
@@ -65,7 +65,7 @@ describe('estimator-api', () => {
     const body = JSON.parse(res.body)
     assert.strictEqual(body.ok, true)
     assert.strictEqual(body.storage, 'ready')
-    assert.strictEqual(body.version, '2.5.0')
+    assert.strictEqual(body.version, '2.6.0')
     assert.strictEqual(body.storageDriver, 'sqlite')
   })
 
@@ -594,7 +594,7 @@ describe('estimator-api', () => {
     assert.ok(typeof body.totalLeads === 'number')
     assert.ok(body.quotesByStatus)
     assert.ok(body.leadsByStatus)
-    assert.strictEqual(body.version, '2.5.0')
+    assert.strictEqual(body.version, '2.6.0')
   })
 
   it('GET /api/v1/backup requires token and returns a SQLite file', async () => {
@@ -721,6 +721,55 @@ describe('estimator-api', () => {
     assert.strictEqual(list.statusCode, 200)
     const body = JSON.parse(list.body)
     assert.ok(body.items.some((l) => l.email === 'lead@example.com'))
+  })
+
+  it('PATCH quote/lead notes without requiring status', async () => {
+    const post = await app.inject({
+      method: 'POST',
+      url: '/api/v1/quotes',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        projectType: 'landing',
+        addOnIds: [],
+        extraSections: '0',
+        min: 1,
+        max: 2,
+        lang: 'en',
+      }),
+    })
+    const { id } = JSON.parse(post.body)
+    const notesOnly = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/quotes/${id}`,
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({ notes: '  Call Monday  ' }),
+    })
+    assert.strictEqual(notesOnly.statusCode, 200)
+    assert.strictEqual(JSON.parse(notesOnly.body).notes, 'Call Monday')
+    assert.strictEqual(JSON.parse(notesOnly.body).status, 'draft')
+
+    const list = await app.inject({ url: `/api/v1/quotes?q=${id.slice(0, 8)}` })
+    assert.strictEqual(JSON.parse(list.body).items[0].notes, 'Call Monday')
+
+    const leadPost = await app.inject({
+      method: 'POST',
+      url: '/api/v1/leads',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        name: 'Notes Lead',
+        email: 'notes@example.com',
+        message: 'hi',
+      }),
+    })
+    const leadId = JSON.parse(leadPost.body).id
+    const leadNotes = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/leads/${leadId}`,
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({ notes: null }),
+    })
+    assert.strictEqual(leadNotes.statusCode, 200)
+    assert.strictEqual(JSON.parse(leadNotes.body).notes, null)
   })
 
   it('PATCH /api/v1/quotes/:id updates status', async () => {
